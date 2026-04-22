@@ -150,10 +150,10 @@ Future<Response> obligationWaiveHandler(Request req) async {
 
   // Check for existing pending waiver
   final existingWaiver = await supabase
-      .from('waivers')
+      .from('training_waivers')
       .select('id')
-      .eq('employee_assignment_id', obligationId)
-      .eq('status', 'pending')
+      .eq('assignment_id', obligationId)
+      .eq('status', 'pending_approval')
       .maybeSingle();
 
   if (existingWaiver != null) {
@@ -161,11 +161,11 @@ Future<Response> obligationWaiveHandler(Request req) async {
   }
 
   // Create waiver request
-  final waiver = await supabase.from('waivers').insert({
-    'employee_assignment_id': obligationId,
+  final waiver = await supabase.from('training_waivers').insert({
+    'assignment_id': obligationId,
     'employee_id': auth.employeeId,
     'reason': reason.trim(),
-    'status': 'pending',
+    'status': 'pending_approval',
     'requested_at': DateTime.now().toUtc().toIso8601String(),
   }).select().single();
 

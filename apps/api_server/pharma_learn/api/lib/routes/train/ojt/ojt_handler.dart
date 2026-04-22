@@ -290,3 +290,156 @@ Future<Response> ojtTasksListHandler(Request req) async {
 
   return ApiResponse.ok(enrichedTasks).toResponse();
 }
+
+/// POST /v1/train/ojt/:id/sign-off [esig]
+///
+/// Evaluator final sign-off on OJT assignment.
+/// Requires all tasks to be completed.
+/// G2 Migration: esignature_id stored on ojt_task_completion
+Future<Response> ojtSignOffHandler(Request req) async {
+  final ojtId = parsePathUuid(req.rawPathParameters[#id]);
+  final auth = RequestContext.auth;
+  final supabase = RequestContext.supabase;
+  final esig = RequestContext.esig;
+  final body = await readJson(req);
+
+  // Verify OJT assignment
+  final ojt = await supabase
+      .from('employee_ojt')
+      .select('id, status, employee_id, evaluator_id, ojt_master_id, completion_percentage')
+      .eq('id', ojtId)
+      .maybeSingle();
+
+  if (ojt == null) throw NotFoundException('OJT assignment not found');
+
+  // Verify current user is the evaluator
+  if (ojt['evaluator_id'] != auth.employeeId) {
+    throw PermissionDeniedException('Only the assigned evaluator can sign off');
+  }
+
+  if (ojt['status'] == 'completed') {
+    throw ConflictException('OJT is already completed');
+  }
+
+  // Verify all tasks are completed
+  if (ojt['completion_percentage'] < 100) {
+    throw ValidationException({
+      'completion': 'All tasks must be completed before sign-off. Current: ${ojt['completion_percentage']}%'
+    });
+  }
+
+  // Create e-signature
+  final esigId = await EsigService(supabase).createEsignature(
+    employeeId: auth.employeeId,
+    meaning: 'OJT_SIGNOFF',
+    entityType: 'employee_ojt',
+    entityId: ojtId,
+    reauthSessionId: esig?.reauthSessionId,
+    reason: body['reason'] as String? ?? 'OJT completed successfully',
+  );
+
+  final now = DateTime.now().toUtc().toIso8601String();
+
+  // Update OJT with sign-off
+  await supabase.from('employee_ojt').update({
+    'status': 'signed_off',
+    'signed_off_at': now,
+    'signed_off_by': auth.employeeId,
+    'signoff_esignature_id': esigId,
+    'evaluator_notes': body['evaluator_notes'],
+  }).eq('id', ojtId);
+
+  // Publish event for certificate generation
+  await OutboxService(supabase).publish(
+    aggregateType: 'ojt',
+    aggregateId: ojtId,
+    eventType: 'ojt.signed_off',
+    payload: {
+      'employee_id': ojt['employee_id'],
+      'evaluator_id': auth.employeeId,
+      'esignature_id': esigId,
+    },
+    orgId: auth.orgId,
+  );
+
+  return ApiResponse.ok({
+    'message': 'OJT signed off successfully',
+    'ojt_id': ojtId,
+    'esignature_id': esigId,
+    'signed_off_at': now,
+  }).toResponse();
+}
+
+/// POST /v1/train/ojt/:id/complete [esig]
+///
+/// Trainee acknowledges OJT completion.
+/// Follows evaluator sign-off.
+Future<Response> ojtCompleteHandler(Request req) async {
+  final ojtId = parsePathUuid(req.rawPathParameters[#id]);
+  final auth = RequestContext.auth;
+  final supabase = RequestContext.supabase;
+  final esig = RequestContext.esig;
+  final body = await readJson(req);
+
+  // Verify OJT assignment
+  final ojt = await supabase
+      .from('employee_ojt')
+      .select('id, status, employee_id, evaluator_id')
+      .eq('id', ojtId)
+      .maybeSingle();
+
+  if (ojt == null) throw NotFoundException('OJT assignment not found');
+
+  // Verify current user is the trainee
+  if (ojt['employee_id'] != auth.employeeId) {
+    throw PermissionDeniedException('Only the assigned trainee can complete');
+  }
+
+  if (ojt['status'] == 'completed') {
+    throw ConflictException('OJT is already completed');
+  }
+
+  if (ojt['status'] != 'signed_off') {
+    throw ValidationException({
+      'status': 'Evaluator must sign off before trainee can complete'
+    });
+  }
+
+  // Create e-signature
+  final esigId = await EsigService(supabase).createEsignature(
+    employeeId: auth.employeeId,
+    meaning: 'OJT_COMPLETE',
+    entityType: 'employee_ojt',
+    entityId: ojtId,
+    reauthSessionId: esig?.reauthSessionId,
+    reason: body['acknowledgment'] as String? ?? 'I acknowledge completion of this OJT',
+  );
+
+  final now = DateTime.now().toUtc().toIso8601String();
+
+  // Mark as completed
+  await supabase.from('employee_ojt').update({
+    'status': 'completed',
+    'completed_at': now,
+    'completion_esignature_id': esigId,
+  }).eq('id', ojtId);
+
+  // Publish event for training record creation
+  await OutboxService(supabase).publish(
+    aggregateType: 'ojt',
+    aggregateId: ojtId,
+    eventType: 'ojt.completed',
+    payload: {
+      'employee_id': ojt['employee_id'],
+      'esignature_id': esigId,
+    },
+    orgId: auth.orgId,
+  );
+
+  return ApiResponse.ok({
+    'message': 'OJT completed successfully',
+    'ojt_id': ojtId,
+    'esignature_id': esigId,
+    'completed_at': now,
+  }).toResponse();
+}

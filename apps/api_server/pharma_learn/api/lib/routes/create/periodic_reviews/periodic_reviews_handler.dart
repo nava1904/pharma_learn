@@ -18,10 +18,10 @@ Future<Response> periodicReviewsListHandler(Request req) async {
   final dueWithin = params['due_within_days'];
 
   var query = supabase
-      .from('periodic_reviews')
+      .from('periodic_review_schedules')
       .select('''
-        id, entity_type, entity_id, review_cycle_months, last_review_date, 
-        next_review_date, status, created_at
+        id, entity_type, entity_id, entity_name, review_interval_months, 
+        last_reviewed_at, next_review_due, status, created_at
       ''');
 
   if (status != null) query = query.eq('status', status);
@@ -29,11 +29,11 @@ Future<Response> periodicReviewsListHandler(Request req) async {
   
   if (dueWithin != null) {
     final days = int.tryParse(dueWithin) ?? 30;
-    final cutoff = DateTime.now().add(Duration(days: days)).toIso8601String().split('T')[0];
-    query = query.lte('next_review_date', cutoff);
+    final cutoff = DateTime.now().add(Duration(days: days)).toIso8601String();
+    query = query.lte('next_review_due', cutoff);
   }
 
-  final reviews = await query.order('next_review_date', ascending: true);
+  final reviews = await query.order('next_review_due', ascending: true);
 
   return ApiResponse.ok(reviews).toResponse();
 }
@@ -53,12 +53,12 @@ Future<Response> periodicReviewGetHandler(Request req) async {
   }
 
   final review = await supabase
-      .from('periodic_reviews')
+      .from('periodic_review_schedules')
       .select('''
         *,
-        periodic_review_history(
-          id, review_date, reviewed_by, outcome, comments,
-          employees!reviewed_by(first_name, last_name)
+        periodic_review_log(
+          id, reviewed_at, reviewed_by, outcome, notes,
+          reviewer:employees!periodic_review_log_reviewed_by_fkey(first_name, last_name)
         )
       ''')
       .eq('id', reviewId)
@@ -74,7 +74,7 @@ Future<Response> periodicReviewGetHandler(Request req) async {
 /// POST /v1/periodic-reviews
 ///
 /// Creates a periodic review schedule.
-/// Body: { entity_type, entity_id, review_cycle_months, first_review_date? }
+/// Body: { entity_type, entity_id, entity_name, review_interval_months?, reviewer_role_id? }
 Future<Response> periodicReviewCreateHandler(Request req) async {
   final auth = RequestContext.auth;
   final supabase = RequestContext.supabase;
@@ -86,11 +86,24 @@ Future<Response> periodicReviewCreateHandler(Request req) async {
 
   final entityType = requireString(body, 'entity_type');
   final entityId = requireUuid(body, 'entity_id');
-  final reviewCycleMonths = body['review_cycle_months'] as int? ?? 12;
+  final entityName = requireString(body, 'entity_name');
+  final reviewIntervalMonths = body['review_interval_months'] as int? ?? 12;
+  final reviewerRoleId = body['reviewer_role_id'] as String?;
+
+  // Validate entity_type
+  final validEntityTypes = [
+    'course', 'document', 'gtp', 'training_matrix',
+    'curriculum', 'assessment_question_paper', 'job_responsibility'
+  ];
+  if (!validEntityTypes.contains(entityType)) {
+    throw ValidationException({
+      'entity_type': 'Must be one of: ${validEntityTypes.join(", ")}',
+    });
+  }
 
   // Check not already scheduled
   final existing = await supabase
-      .from('periodic_reviews')
+      .from('periodic_review_schedules')
       .select('id')
       .eq('entity_type', entityType)
       .eq('entity_id', entityId)
@@ -101,17 +114,18 @@ Future<Response> periodicReviewCreateHandler(Request req) async {
   }
 
   final now = DateTime.now();
-  final firstReviewDate = body['first_review_date'] as String? ?? 
-      now.add(Duration(days: reviewCycleMonths * 30)).toIso8601String().split('T')[0];
+  final nextReviewDue = now.add(Duration(days: reviewIntervalMonths * 30));
 
   final review = await supabase
-      .from('periodic_reviews')
+      .from('periodic_review_schedules')
       .insert({
         'entity_type': entityType,
         'entity_id': entityId,
-        'review_cycle_months': reviewCycleMonths,
-        'next_review_date': firstReviewDate,
-        'status': 'scheduled',
+        'entity_name': entityName,
+        'review_interval_months': reviewIntervalMonths,
+        'next_review_due': nextReviewDue.toUtc().toIso8601String(),
+        'reviewer_role_id': reviewerRoleId,
+        'status': 'PENDING',
         'created_by': auth.employeeId,
         'created_at': now.toUtc().toIso8601String(),
       })
@@ -124,7 +138,7 @@ Future<Response> periodicReviewCreateHandler(Request req) async {
 /// POST /v1/periodic-reviews/:id/complete [esig]
 ///
 /// Completes a periodic review.
-/// Body: { outcome, comments? }
+/// Body: { outcome, notes? }
 Future<Response> periodicReviewCompleteHandler(Request req) async {
   final reviewId = req.rawPathParameters[#id];
   final auth = RequestContext.auth;
@@ -146,9 +160,17 @@ Future<Response> periodicReviewCompleteHandler(Request req) async {
 
   final outcome = requireString(body, 'outcome');
 
+  // Validate outcome
+  final validOutcomes = ['NO_CHANGE', 'MINOR_UPDATE', 'MAJOR_REVISION', 'WITHDRAWN', 'DEFERRED'];
+  if (!validOutcomes.contains(outcome)) {
+    throw ValidationException({
+      'outcome': 'Must be one of: ${validOutcomes.join(", ")}',
+    });
+  }
+
   final existing = await supabase
-      .from('periodic_reviews')
-      .select('id, status, review_cycle_months')
+      .from('periodic_review_schedules')
+      .select('id, status, review_interval_months')
       .eq('id', reviewId)
       .maybeSingle();
 
@@ -156,7 +178,7 @@ Future<Response> periodicReviewCompleteHandler(Request req) async {
     throw NotFoundException('Periodic review not found');
   }
 
-  if (existing['status'] != 'scheduled' && existing['status'] != 'overdue') {
+  if (existing['status'] != 'PENDING' && existing['status'] != 'OVERDUE' && existing['status'] != 'IN_REVIEW') {
     throw ConflictException('Review is not pending completion');
   }
 
@@ -164,44 +186,47 @@ Future<Response> periodicReviewCompleteHandler(Request req) async {
   final nowStr = now.toUtc().toIso8601String();
 
   // Create e-signature
-  final esigResult = await supabase.rpc('create_esignature', params: {
-    'p_employee_id': auth.employeeId,
-    'p_reauth_session_id': esig.reauthSessionId,
-    'p_entity_type': 'periodic_reviews',
-    'p_entity_id': reviewId,
-    'p_action': 'complete',
-    'p_meaning': esig.meaning,
-    'p_reason': esig.reason,
-  });
+  final esigService = EsigService(supabase);
+  final esigId = await esigService.createEsignature(
+    employeeId: auth.employeeId,
+    meaning: esig.meaning,
+    entityType: 'periodic_review_schedule',
+    entityId: reviewId,
+    reauthSessionId: esig.reauthSessionId,
+  );
 
-  // Add history record
-  await supabase.from('periodic_review_history').insert({
-    'periodic_review_id': reviewId,
-    'review_date': nowStr,
+  // Add log record (immutable)
+  await supabase.from('periodic_review_log').insert({
+    'schedule_id': reviewId,
+    'reviewed_at': nowStr,
     'reviewed_by': auth.employeeId,
     'outcome': outcome,
-    'comments': body['comments'],
-    'esig_id': esigResult['id'],
+    'notes': body['notes'],
+    'esignature_id': esigId,
   });
 
   // Calculate next review date
-  final cycleMonths = existing['review_cycle_months'] as int;
-  final nextReviewDate = now.add(Duration(days: cycleMonths * 30)).toIso8601String().split('T')[0];
+  final intervalMonths = existing['review_interval_months'] as int;
+  final nextReviewDue = now.add(Duration(days: intervalMonths * 30));
 
   // Update review schedule
   await supabase
-      .from('periodic_reviews')
+      .from('periodic_review_schedules')
       .update({
-        'last_review_date': nowStr,
-        'next_review_date': nextReviewDate,
-        'status': 'scheduled',
+        'last_reviewed_at': nowStr,
         'last_reviewed_by': auth.employeeId,
+        'last_review_outcome': outcome,
+        'last_review_notes': body['notes'],
+        'next_review_due': nextReviewDue.toUtc().toIso8601String(),
+        'status': 'COMPLETED',
+        'updated_at': nowStr,
       })
       .eq('id', reviewId);
 
   return ApiResponse.ok({
     'message': 'Periodic review completed',
-    'next_review_date': nextReviewDate,
+    'next_review_due': nextReviewDue.toUtc().toIso8601String(),
+    'esignature_id': esigId,
   }).toResponse();
 }
 
@@ -223,18 +248,21 @@ Future<Response> periodicReviewUpdateHandler(Request req) async {
   }
 
   final updateData = <String, dynamic>{
-    'updated_by': auth.employeeId,
     'updated_at': DateTime.now().toUtc().toIso8601String(),
   };
 
-  for (final field in ['review_cycle_months', 'next_review_date', 'status']) {
+  final allowedFields = [
+    'review_interval_months', 'next_review_due', 'status',
+    'reviewer_role_id', 'assigned_reviewer_id', 'entity_name'
+  ];
+  for (final field in allowedFields) {
     if (body.containsKey(field)) {
       updateData[field] = body[field];
     }
   }
 
   final updated = await supabase
-      .from('periodic_reviews')
+      .from('periodic_review_schedules')
       .update(updateData)
       .eq('id', reviewId)
       .select()
@@ -257,11 +285,8 @@ Future<Response> periodicReviewDeleteHandler(Request req) async {
     throw PermissionDeniedException('You do not have permission to delete periodic reviews');
   }
 
-  // Delete history first
-  await supabase.from('periodic_review_history').delete().eq('periodic_review_id', reviewId);
-  
-  // Delete review
-  await supabase.from('periodic_reviews').delete().eq('id', reviewId);
+  // Note: periodic_review_log is immutable, CASCADE will handle it
+  await supabase.from('periodic_review_schedules').delete().eq('id', reviewId);
 
   return ApiResponse.noContent().toResponse();
 }

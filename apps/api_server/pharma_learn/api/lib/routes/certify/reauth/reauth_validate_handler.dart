@@ -19,30 +19,53 @@ Future<Response> reauthValidateHandler(Request req) async {
     throw ValidationException({'reauth_session_id': 'Required'});
   }
 
+  final auth = RequestContext.auth;
   final supabase = RequestContext.supabase;
   final esigSvc = EsigService(supabase);
 
-  final result = await esigSvc.validateReauthSessionFull(reauthSessionId);
+  // Validate the session belongs to the current employee
+  final isValid = await esigSvc.validateReauthSession(
+    reauthSessionId,
+    auth.employeeId,
+  );
 
-  if (result == null || result['is_valid'] != true) {
+  if (!isValid) {
     return ApiResponse.ok({
       'is_valid': false,
-      'reason': 'Session not found or already consumed',
+      'reason': 'Session not found, expired, or already consumed',
     }).toResponse();
   }
 
-  final expiresAt = DateTime.tryParse(result['expires_at'] as String? ?? '');
-  if (expiresAt != null && expiresAt.isBefore(DateTime.now().toUtc())) {
+  // Get session details from database for expiry info
+  final session = await supabase
+      .from('reauth_sessions')
+      .select('expires_at, meaning')
+      .eq('id', reauthSessionId)
+      .eq('employee_id', auth.employeeId)
+      .maybeSingle();
+
+  if (session == null) {
     return ApiResponse.ok({
       'is_valid': false,
-      'reason': 'Session has expired',
+      'reason': 'Session not found',
     }).toResponse();
+  }
+
+  final expiresAt = session['expires_at'] as String?;
+  if (expiresAt != null) {
+    final expiry = DateTime.tryParse(expiresAt);
+    if (expiry != null && expiry.isBefore(DateTime.now().toUtc())) {
+      return ApiResponse.ok({
+        'is_valid': false,
+        'reason': 'Session has expired',
+      }).toResponse();
+    }
   }
 
   return ApiResponse.ok({
     'is_valid': true,
-    'expires_at': result['expires_at'],
-    'meaning': result['meaning'],
-    'employee_id': result['employee_id'],
+    'expires_at': expiresAt,
+    'meaning': session['meaning'],
+    'employee_id': auth.employeeId,
   }).toResponse();
 }

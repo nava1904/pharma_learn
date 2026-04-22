@@ -13,5 +13,7 @@ void mountScormRoutes(RelicApp app) {
   
   // SCORM runtime
   app.get('/v1/scorm/:id/launch', scormLaunchHandler);
+  app.post('/v1/scorm/:id/initialize', scormInitializeHandler);
   app.post('/v1/scorm/:id/commit', scormCommitHandler);
+  app.get('/v1/scorm/:id/progress', scormProgressHandler);
 }

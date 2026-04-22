@@ -22,9 +22,12 @@ Future<void> main() async {
   final scheduler = JobSchedulerService(supabase);
   scheduler.start();
 
+  // Initialize event router
+  final eventRouter = LifecycleEventRouter(supabase);
+
   final listener = PgListenerService(supabase, onEvent: (event) async {
-    // Events consumed by lifecycle_monitor (not workflow events — those go to workflow_engine)
-    // Workflow events (document.submitted etc.) are filtered to workflow_engine channel
+    // Route events through the lifecycle event router
+    await eventRouter.route(event);
   });
   await listener.start();
 

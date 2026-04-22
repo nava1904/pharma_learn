@@ -13,7 +13,10 @@ Future<Response> groupsListHandler(Request req) async {
   final perPage = int.tryParse(params['per_page'] ?? '20') ?? 20;
 
   // Count
-  final countResult = await supabase.from('employee_groups').select('id');
+  final countResult = await supabase
+      .from('employee_groups')
+      .select('id')
+      .eq('organization_id', auth.orgId);
   final total = countResult.length;
 
   // Data
@@ -23,6 +26,7 @@ Future<Response> groupsListHandler(Request req) async {
         id, name, description, group_type, is_active, created_at,
         employee_group_members(count)
       ''')
+      .eq('organization_id', auth.orgId)
       .order('name', ascending: true)
       .range((page - 1) * perPage, page * perPage - 1);
 

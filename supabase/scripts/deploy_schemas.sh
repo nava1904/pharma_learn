@@ -51,6 +51,7 @@ deploy_directory "$SCHEMAS_DIR/13_analytics" "Analytics"
 deploy_directory "$SCHEMAS_DIR/14_workflow" "Workflow"
 deploy_directory "$SCHEMAS_DIR/15_cron" "Cron Jobs"
 deploy_directory "$SCHEMAS_DIR/16_infrastructure" "Infrastructure"
+deploy_directory "$SCHEMAS_DIR/17_extensions" "Extensions (SCORM, xAPI, etc.)"
 deploy_directory "$SCHEMAS_DIR/99_policies" "RLS Policies"
 
 echo ""

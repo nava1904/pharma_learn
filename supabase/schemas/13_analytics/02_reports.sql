@@ -29,25 +29,45 @@ CREATE INDEX IF NOT EXISTS idx_report_defs_org ON report_definitions(organizatio
 CREATE INDEX IF NOT EXISTS idx_report_defs_category ON report_definitions(report_category);
 
 -- Scheduled Reports
+-- Supports both static templates and dynamic report definitions
 CREATE TABLE IF NOT EXISTS scheduled_reports (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    report_definition_id UUID NOT NULL REFERENCES report_definitions(id) ON DELETE CASCADE,
-    user_id UUID NOT NULL REFERENCES global_profiles(id) ON DELETE CASCADE,
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    -- Can reference either a report_definition or a static template_id
+    report_definition_id UUID REFERENCES report_definitions(id) ON DELETE CASCADE,
+    template_id TEXT,  -- For static report templates (e.g., 'overdue_training_report')
+    -- Schedule metadata
     schedule_name TEXT NOT NULL,
-    frequency TEXT NOT NULL,
-    schedule_config JSONB NOT NULL,
-    filter_values JSONB,
+    description TEXT,
+    -- Cron-based scheduling
+    cron_expression TEXT NOT NULL,
+    timezone TEXT DEFAULT 'UTC',
+    frequency TEXT NOT NULL,  -- 'daily', 'weekly', 'monthly', 'custom'
+    schedule_config JSONB,  -- Additional scheduling options
+    -- Report parameters
+    parameters JSONB,  -- Report-specific parameters (department_id, date_range, etc.)
+    filter_values JSONB,  -- Filter criteria for the report
     export_format TEXT DEFAULT 'pdf',
-    recipients JSONB NOT NULL,
+    -- Delivery
+    recipients JSONB NOT NULL,  -- Array of {employee_id, role, email}
+    delivery_method TEXT DEFAULT 'email',  -- 'email', 'download', 'both'
+    -- State
     is_active BOOLEAN DEFAULT true,
     last_run_at TIMESTAMPTZ,
     next_run_at TIMESTAMPTZ,
+    run_count INTEGER DEFAULT 0,
+    -- Ownership
+    created_by UUID REFERENCES employees(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    -- Ensure at least one report reference
+    CONSTRAINT chk_report_ref CHECK (report_definition_id IS NOT NULL OR template_id IS NOT NULL)
 );
 
-CREATE INDEX IF NOT EXISTS idx_scheduled_reports_user ON scheduled_reports(user_id);
+CREATE INDEX IF NOT EXISTS idx_scheduled_reports_org ON scheduled_reports(organization_id);
+CREATE INDEX IF NOT EXISTS idx_scheduled_reports_template ON scheduled_reports(template_id);
 CREATE INDEX IF NOT EXISTS idx_scheduled_reports_next_run ON scheduled_reports(next_run_at);
+CREATE INDEX IF NOT EXISTS idx_scheduled_reports_active ON scheduled_reports(is_active) WHERE is_active = true;
 
 -- Report Execution History
 CREATE TABLE IF NOT EXISTS report_executions (

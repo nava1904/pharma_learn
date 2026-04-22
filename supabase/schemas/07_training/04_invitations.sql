@@ -7,15 +7,25 @@ CREATE TABLE IF NOT EXISTS training_invitations (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     schedule_id UUID NOT NULL REFERENCES training_schedules(id) ON DELETE CASCADE,
     batch_id UUID REFERENCES training_batches(id) ON DELETE SET NULL,
+    enrollment_id UUID REFERENCES schedule_enrollments(id) ON DELETE SET NULL,
     employee_id UUID NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
-    invited_by UUID NOT NULL,
+    -- Invitation metadata
+    invited_by UUID,
     invited_at TIMESTAMPTZ DEFAULT NOW(),
-    invitation_type TEXT DEFAULT 'manual',
-    response_status invitation_response DEFAULT 'pending',
+    invitation_type TEXT DEFAULT 'manual',  -- 'manual', 'auto', 'bulk'
+    -- Sending state
+    status TEXT DEFAULT 'draft',  -- 'draft', 'sent', 'delivered', 'failed'
+    sent_at TIMESTAMPTZ,
+    include_calendar BOOLEAN DEFAULT TRUE,
+    custom_message TEXT,
+    -- Response tracking
+    response_status invitation_response DEFAULT 'pending',  -- 'pending', 'accepted', 'declined', 'tentative'
     responded_at TIMESTAMPTZ,
     response_comments TEXT,
+    -- Reminders
     reminder_sent_count INTEGER DEFAULT 0,
     last_reminder_at TIMESTAMPTZ,
+    -- Timestamps
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE(schedule_id, employee_id)
@@ -24,6 +34,7 @@ CREATE TABLE IF NOT EXISTS training_invitations (
 CREATE INDEX IF NOT EXISTS idx_invitations_schedule ON training_invitations(schedule_id);
 CREATE INDEX IF NOT EXISTS idx_invitations_employee ON training_invitations(employee_id);
 CREATE INDEX IF NOT EXISTS idx_invitations_status ON training_invitations(response_status);
+CREATE INDEX IF NOT EXISTS idx_invitations_sent ON training_invitations(status) WHERE status = 'sent';
 
 DROP TRIGGER IF EXISTS trg_invitations_audit ON training_invitations;
 CREATE TRIGGER trg_invitations_audit AFTER INSERT OR UPDATE OR DELETE ON training_invitations FOR EACH ROW EXECUTE FUNCTION track_entity_changes();

@@ -399,7 +399,14 @@ Future<Response> assessmentSubmitHandler(Request req) async {
   // Calculate score (exclude pending review from denominator for now)
   final gradableMarks = totalMarks - pendingReviewMarks;
   final score = gradableMarks > 0 ? (earnedMarks / gradableMarks * 100).round() : 0;
-  final requiresReview = pendingReviewMarks > 0;
+  
+  // Check proctoring thresholds (per certify_plan.md)
+  final proctoringReviewRequired = _requiresProctoringReview(
+    proctoringFlags, 
+    questions.length,
+  );
+  
+  final requiresReview = pendingReviewMarks > 0 || proctoringReviewRequired;
   final passed = !requiresReview && score >= passingPercentage;
 
   // Update attempt
@@ -411,8 +418,21 @@ Future<Response> assessmentSubmitHandler(Request req) async {
     'total_marks': totalMarks,
     'earned_marks': earnedMarks,
     'passed': passed,
+    'requires_review': requiresReview,
     'proctoring_flags': proctoringFlags,
+    'proctoring_flagged': proctoringReviewRequired,
   }).eq('id', attemptId);
+
+  // If proctoring flagged, add to grading queue with elevated priority
+  if (proctoringReviewRequired) {
+    await supabase.from('grading_queue').upsert({
+      'attempt_id': attemptId,
+      'status': 'pending',
+      'priority': 1, // 1 = proctoring_review (highest priority)
+      'reason': 'proctoring_threshold_exceeded',
+      'proctoring_flags': proctoringFlags,
+    }, onConflict: 'attempt_id');
+  }
 
   return ApiResponse.ok({
     'attempt_id': attemptId,
@@ -423,7 +443,36 @@ Future<Response> assessmentSubmitHandler(Request req) async {
     'total_marks': totalMarks,
     'requires_review': requiresReview,
     'pending_review_marks': pendingReviewMarks,
+    'proctoring_flagged': proctoringReviewRequired,
   }).toResponse();
+}
+
+/// Evaluates proctoring thresholds per certify_plan.md:
+/// - tab_switch > 3 occurrences
+/// - copy_paste: any occurrence
+/// - rapid_submit: time_taken_seconds < (total_questions × 3)
+/// - focus_loss > 2 occurrences
+bool _requiresProctoringReview(Map<String, dynamic>? proctoring, int totalQuestions) {
+  if (proctoring == null) return false;
+  
+  // Threshold 1: Tab switch > 3 occurrences
+  final tabSwitches = proctoring['tab_switch_count'] as int? ?? 0;
+  if (tabSwitches > 3) return true;
+  
+  // Threshold 2: Copy/paste - any occurrence
+  final copyPaste = proctoring['copy_paste_detected'] as bool? ?? false;
+  if (copyPaste) return true;
+  
+  // Threshold 3: Focus loss > 2 occurrences (mobile app backgrounded)
+  final focusLoss = proctoring['focus_loss_count'] as int? ?? 0;
+  if (focusLoss > 2) return true;
+  
+  // Threshold 4: Rapid submit - time_taken < (total_questions × 3 seconds)
+  final timeTaken = proctoring['time_taken_seconds'] as int? ?? 999999;
+  final minExpectedTime = totalQuestions * 3;
+  if (timeTaken < minExpectedTime) return true;
+  
+  return false;
 }
 
 /// GET /v1/certify/assessments/:id

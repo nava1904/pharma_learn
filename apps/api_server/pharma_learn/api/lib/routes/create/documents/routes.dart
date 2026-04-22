@@ -10,6 +10,8 @@ import 'document_versions_handler.dart';
 import 'document_readings_handler.dart';
 import 'document_reading_ack_handler.dart';
 import 'document_integrity_handler.dart';
+import 'document_export_handler.dart';
+import 'document_issue_handler.dart';
 
 void mountDocumentRoutes(RelicApp app) {
   // Collection
@@ -28,6 +30,9 @@ void mountDocumentRoutes(RelicApp app) {
   app.post('/v1/documents/:id/approve', withEsig(documentApproveHandler));
   app.post('/v1/documents/:id/reject', withEsig(documentRejectHandler));
 
+  // Controlled copy issuance
+  app.post('/v1/documents/:id/issue-copy', documentIssueCopyHandler);
+
   // Versions
   app.get('/v1/documents/:id/versions', documentVersionsHandler);
 
@@ -39,4 +44,7 @@ void mountDocumentRoutes(RelicApp app) {
 
   // Integrity verification
   app.get('/v1/documents/:id/integrity', documentIntegrityHandler);
+
+  // Export
+  app.get('/v1/documents/:id/export', documentExportHandler);
 }

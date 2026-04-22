@@ -1,8 +1,24 @@
 import 'package:supabase/supabase.dart';
 import 'package:logger/logger.dart';
 
-// Listens to Supabase Realtime for events_outbox inserts (as pg_notify proxy)
-// Falls back to polling every 5 seconds
+// ---------------------------------------------------------------------------
+// PG Listener Service
+// ---------------------------------------------------------------------------
+// Polls events_outbox for NON-WORKFLOW events and dispatches them.
+// Workflow events (*.submitted) are handled by workflow_engine's listener.
+// ---------------------------------------------------------------------------
+
+/// Event types handled by workflow_engine (excluded here)
+const _workflowEventTypes = [
+  'document.submitted',
+  'course.submitted',
+  'gtp.submitted',
+  'question_paper.submitted',
+  'curriculum.published',
+  'trainer.submitted',
+  'schedule.submitted',
+];
+
 class PgListenerService {
   final SupabaseClient _supabase;
   final Logger _logger = Logger();
@@ -15,7 +31,7 @@ class PgListenerService {
 
   Future<void> start() async {
     _running = true;
-    _logger.i('PgListenerService: starting event listener');
+    _logger.i('PgListenerService: starting event listener (excluding workflow events)');
     _startPolling();
   }
 
@@ -35,11 +51,13 @@ class PgListenerService {
   }
 
   Future<void> _pollEvents() async {
+    // Fetch unprocessed events EXCLUDING workflow events (handled by workflow_engine)
     final events = await _supabase
         .from('events_outbox')
         .select()
         .isFilter('processed_at', null)
         .eq('is_dead_letter', false)
+        .not('event_type', 'in', '(${_workflowEventTypes.join(",")})')
         .order('created_at')
         .limit(50);
 

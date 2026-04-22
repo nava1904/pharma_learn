@@ -48,6 +48,10 @@ class ConflictException extends PharmaLearnException {
   const ConflictException(super.message);
 }
 
+class ImmutableRecordException extends PharmaLearnException {
+  const ImmutableRecordException(super.message);
+}
+
 class InductionGateException extends PharmaLearnException {
   const InductionGateException([
     super.message =
@@ -87,6 +91,8 @@ Handler withErrorHandler(Handler handler) {
       return _problem(ErrorResponse.accountLocked(e.message));
     } on ConflictException catch (e) {
       return _problem(ErrorResponse.conflict(e.message));
+    } on ImmutableRecordException catch (e) {
+      return _problem(ErrorResponse.immutableRecord(e.message));
     } on InductionGateException catch (e) {
       return _problem(ErrorResponse.inductionRequired(e.message));
     } on AuthException catch (e) {

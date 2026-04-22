@@ -196,3 +196,61 @@ COMMENT ON FUNCTION get_course_compliance_breakdown IS
   'Get compliance breakdown by course, sorted by worst compliance first.';
 COMMENT ON FUNCTION get_at_risk_employees IS 
   'Get employees with overdue or upcoming-due training assignments.';
+
+-- ---------------------------------------------------------------------------
+-- Alias: recalculate_compliance_metrics
+-- Some handlers call this name; it wraps calculate_org_compliance
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION recalculate_compliance_metrics(
+  p_organization_id UUID DEFAULT NULL
+)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_org RECORD;
+  v_result RECORD;
+BEGIN
+  -- If no org specified, process all active orgs
+  FOR v_org IN 
+    SELECT id FROM organizations 
+    WHERE (p_organization_id IS NULL OR id = p_organization_id)
+      AND is_active = TRUE
+  LOOP
+    -- Calculate org compliance
+    SELECT * INTO v_result
+    FROM calculate_org_compliance(v_org.id, NULL, CURRENT_DATE);
+    
+    -- Upsert into compliance_metrics table (if it exists)
+    INSERT INTO compliance_metrics (
+      organization_id,
+      metric_type,
+      metric_value,
+      calculated_at,
+      metadata
+    ) VALUES (
+      v_org.id,
+      'org_compliance_rate',
+      v_result.compliance_rate,
+      NOW(),
+      jsonb_build_object(
+        'total_employees', v_result.total_employees,
+        'total_obligations', v_result.total_obligations,
+        'completed', v_result.completed,
+        'overdue', v_result.overdue,
+        'pending', v_result.pending
+      )
+    )
+    ON CONFLICT (organization_id, metric_type) 
+    DO UPDATE SET 
+      metric_value = EXCLUDED.metric_value,
+      calculated_at = EXCLUDED.calculated_at,
+      metadata = EXCLUDED.metadata;
+  END LOOP;
+END;
+$$;
+
+COMMENT ON FUNCTION recalculate_compliance_metrics IS 
+  'Recalculates and stores compliance metrics for one or all organizations. Called by lifecycle_monitor cron.';
+

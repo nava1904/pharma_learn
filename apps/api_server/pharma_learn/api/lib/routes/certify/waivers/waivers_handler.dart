@@ -25,7 +25,7 @@ Future<Response> waiversListHandler(Request req) async {
   );
 
   var query = supabase
-      .from('waivers')
+      .from('training_waivers')
       .select('''
         id, reason, status, requested_at, approved_at, rejected_at, rejection_reason,
         employees!employee_id(id, first_name, last_name, employee_number),
@@ -66,7 +66,7 @@ Future<Response> waiverGetHandler(Request req) async {
   );
 
   final waiver = await supabase
-      .from('waivers')
+      .from('training_waivers')
       .select('''
         id, reason, status, requested_at, approved_at, rejected_at, rejection_reason,
         employees!employee_id(id, first_name, last_name, employee_number, email),
@@ -123,8 +123,8 @@ Future<Response> waiverApproveHandler(Request req) async {
 
   // Get waiver request
   final waiver = await supabase
-      .from('waivers')
-      .select('id, status, employee_assignment_id')
+      .from('training_waivers')
+      .select('id, status, assignment_id')
       .eq('id', waiverId)
       .maybeSingle();
 
@@ -132,7 +132,7 @@ Future<Response> waiverApproveHandler(Request req) async {
     throw NotFoundException('Waiver request not found');
   }
 
-  if (waiver['status'] != 'pending') {
+  if (waiver['status'] != 'pending_approval') {
     throw ConflictException('Waiver has already been ${waiver['status']}');
   }
 
@@ -151,7 +151,7 @@ Future<Response> waiverApproveHandler(Request req) async {
   final now = DateTime.now().toUtc().toIso8601String();
 
   // Update waiver
-  await supabase.from('waivers').update({
+  await supabase.from('training_waivers').update({
     'status': 'approved',
     'approved_by': auth.employeeId,
     'approved_at': now,
@@ -163,7 +163,7 @@ Future<Response> waiverApproveHandler(Request req) async {
     'status': 'waived',
     'waived_at': now,
     'waiver_reason': 'Approved by manager',
-  }).eq('id', waiver['employee_assignment_id']);
+  }).eq('id', waiver['assignment_id']);
 
   return ApiResponse.ok({
     'waiver_id': waiverId,
@@ -202,7 +202,7 @@ Future<Response> waiverRejectHandler(Request req) async {
 
   // Get waiver request
   final waiver = await supabase
-      .from('waivers')
+      .from('training_waivers')
       .select('id, status')
       .eq('id', waiverId)
       .maybeSingle();
@@ -211,14 +211,14 @@ Future<Response> waiverRejectHandler(Request req) async {
     throw NotFoundException('Waiver request not found');
   }
 
-  if (waiver['status'] != 'pending') {
+  if (waiver['status'] != 'pending_approval') {
     throw ConflictException('Waiver has already been ${waiver['status']}');
   }
 
   final now = DateTime.now().toUtc().toIso8601String();
 
   // Update waiver
-  await supabase.from('waivers').update({
+  await supabase.from('training_waivers').update({
     'status': 'rejected',
     'rejected_by': auth.employeeId,
     'rejected_at': now,
@@ -240,7 +240,7 @@ Future<Response> myWaiversHandler(Request req) async {
   final supabase = RequestContext.supabase;
 
   final waivers = await supabase
-      .from('waivers')
+      .from('training_waivers')
       .select('''
         id, reason, status, requested_at, approved_at, rejected_at, rejection_reason,
         employee_assignments!inner(

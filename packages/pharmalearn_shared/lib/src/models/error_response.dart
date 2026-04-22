@@ -92,6 +92,13 @@ class ErrorResponse {
         status: 409,
       );
 
+  factory ErrorResponse.immutableRecord(String detail) => ErrorResponse(
+        type: '/errors/immutable-record',
+        title: 'Immutable Record',
+        detail: detail,
+        status: 409,
+      );
+
   factory ErrorResponse.rateLimit() => ErrorResponse(
         type: '/errors/rate-limit',
         title: 'Too Many Requests',

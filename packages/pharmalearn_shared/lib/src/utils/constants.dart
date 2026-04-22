@@ -45,6 +45,12 @@ abstract final class Permissions {
   // Assessments
   static const String manageAssessments = 'assessments.manage';
   static const String viewAssessments = 'assessments.view';
+  static const String viewAssessmentResults = 'assessments.results.view';
+  static const String gradeAssessments = 'assessments.grade';
+
+  // Competencies
+  static const String manageCompetencies = 'competencies.manage';
+  static const String viewCompetencies = 'competencies.view';
 
   // Training
   static const String manageTraining = 'training.manage';
@@ -56,6 +62,7 @@ abstract final class Permissions {
   // Reports
   static const String viewReports = 'reports.view';
   static const String exportReports = 'reports.export';
+  static const String manageReports = 'reports.manage';
 }
 
 /// Domain event type constants for the outbox/event-sourcing pattern.

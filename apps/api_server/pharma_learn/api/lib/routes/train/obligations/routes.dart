@@ -1,6 +1,7 @@
 import 'package:relic/relic.dart';
 
 import 'obligations_handler.dart';
+import 'compliance_report_handler.dart';
 
 /// Mounts /v1/train/obligations routes
 void mountObligationsRoutes(RelicApp app) {
@@ -8,4 +9,7 @@ void mountObligationsRoutes(RelicApp app) {
   app.get('/v1/train/obligations', obligationsListHandler);
   app.get('/v1/train/obligations/:id', obligationGetHandler);
   app.post('/v1/train/obligations/:id/waive', obligationWaiveHandler);
+
+  // Compliance reports
+  app.get('/v1/train/compliance-report', complianceReportHandler);
 }

@@ -41,13 +41,17 @@ deps:
 
 # ── Code Generation ───────────────────────────────────────────────────────────
 
-## Run Flutter code generation (MobX + injectable + json_serializable)
+## Run Flutter code generation (MobX + injectable + json_serializable + Vyuh)
 codegen:
-	dart run build_runner build --delete-conflicting-outputs
+	cd apps/pharma_learn && dart run build_runner build --delete-conflicting-outputs
 
 ## Watch mode for Flutter code generation
 codegen-watch:
-	dart run build_runner watch --delete-conflicting-outputs
+	cd apps/pharma_learn && dart run build_runner watch --delete-conflicting-outputs
+
+## Run server codegen (if needed)
+codegen-server:
+	cd packages/pharmalearn_shared && dart run build_runner build --delete-conflicting-outputs
 
 # ── Testing ───────────────────────────────────────────────────────────────────
 

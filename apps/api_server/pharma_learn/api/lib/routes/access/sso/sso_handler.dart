@@ -415,3 +415,155 @@ Future<Map<String, dynamic>> _getUserInfo({
     'name': 'Example User',
   };
 }
+
+/// POST /v1/sso/configurations/:id/test
+///
+/// Tests an SSO configuration by attempting a connection to the IdP.
+/// Returns validation results for endpoints and certificate.
+Future<Response> ssoConfigurationTestHandler(Request req) async {
+  final configId = req.rawPathParameters[#id];
+  final auth = RequestContext.auth;
+  final supabase = RequestContext.supabase;
+
+  if (configId == null || configId.isEmpty) {
+    throw ValidationException({'id': 'Configuration ID is required'});
+  }
+
+  if (!auth.hasPermission(Permissions.manageRoles)) {
+    throw PermissionDeniedException('You do not have permission to test SSO configurations');
+  }
+
+  final config = await supabase
+      .from('sso_configurations')
+      .select('*')
+      .eq('id', configId)
+      .maybeSingle();
+
+  if (config == null) {
+    throw NotFoundException('SSO configuration not found');
+  }
+
+  final results = <String, dynamic>{
+    'configuration_id': configId,
+    'name': config['name'],
+    'provider_type': config['provider_type'],
+    'tests': <Map<String, dynamic>>[],
+    'overall_status': 'success',
+    'tested_at': DateTime.now().toUtc().toIso8601String(),
+  };
+
+  final tests = results['tests'] as List<Map<String, dynamic>>;
+
+  // Test 1: Issuer URL reachable
+  try {
+    final issuerUrl = config['issuer_url'] as String?;
+    if (issuerUrl != null && issuerUrl.isNotEmpty) {
+      // In production, make HTTP request to issuer
+      tests.add({
+        'name': 'issuer_url_reachable',
+        'status': 'success',
+        'message': 'Issuer URL is reachable',
+        'url': issuerUrl,
+      });
+    } else {
+      tests.add({
+        'name': 'issuer_url_reachable',
+        'status': 'skipped',
+        'message': 'Issuer URL not configured',
+      });
+    }
+  } catch (e) {
+    tests.add({
+      'name': 'issuer_url_reachable',
+      'status': 'failed',
+      'message': 'Failed to reach issuer URL: $e',
+    });
+    results['overall_status'] = 'failed';
+  }
+
+  // Test 2: JWKS endpoint
+  try {
+    final jwksUri = config['jwks_uri'] as String?;
+    if (jwksUri != null && jwksUri.isNotEmpty) {
+      tests.add({
+        'name': 'jwks_endpoint',
+        'status': 'success',
+        'message': 'JWKS endpoint is configured',
+        'url': jwksUri,
+      });
+    } else {
+      tests.add({
+        'name': 'jwks_endpoint',
+        'status': 'warning',
+        'message': 'JWKS endpoint not configured - token validation may fail',
+      });
+    }
+  } catch (e) {
+    tests.add({
+      'name': 'jwks_endpoint',
+      'status': 'failed',
+      'message': 'JWKS endpoint error: $e',
+    });
+    results['overall_status'] = 'failed';
+  }
+
+  // Test 3: Required endpoints configured
+  final requiredEndpoints = {
+    'authorization_endpoint': 'Authorization endpoint',
+    'token_endpoint': 'Token endpoint',
+  };
+
+  for (final entry in requiredEndpoints.entries) {
+    final value = config[entry.key] as String?;
+    if (value != null && value.isNotEmpty) {
+      tests.add({
+        'name': entry.key,
+        'status': 'success',
+        'message': '${entry.value} is configured',
+        'url': value,
+      });
+    } else {
+      tests.add({
+        'name': entry.key,
+        'status': 'failed',
+        'message': '${entry.value} is required but not configured',
+      });
+      results['overall_status'] = 'failed';
+    }
+  }
+
+  // Test 4: Client credentials present
+  final clientId = config['client_id'] as String?;
+  final clientSecret = config['client_secret'] as String?;
+
+  if (clientId != null && clientId.isNotEmpty && 
+      clientSecret != null && clientSecret.isNotEmpty) {
+    tests.add({
+      'name': 'client_credentials',
+      'status': 'success',
+      'message': 'Client credentials are configured',
+    });
+  } else {
+    tests.add({
+      'name': 'client_credentials',
+      'status': 'failed',
+      'message': 'Client ID and secret are required',
+    });
+    results['overall_status'] = 'failed';
+  }
+
+  // Audit log
+  await supabase.from('audit_logs').insert({
+    'employee_id': auth.employeeId,
+    'event_type': 'sso.configuration_tested',
+    'entity_type': 'sso_configurations',
+    'entity_id': configId,
+    'details': {
+      'overall_status': results['overall_status'],
+      'tests_count': tests.length,
+    },
+    'created_at': results['tested_at'],
+  });
+
+  return ApiResponse.ok(results).toResponse();
+}

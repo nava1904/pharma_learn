@@ -9,6 +9,7 @@ void mountSsoRoutes(RelicApp app) {
   app.post('/v1/sso/configurations', ssoConfigurationCreateHandler);
   app.patch('/v1/sso/configurations/:id', ssoConfigurationUpdateHandler);
   app.delete('/v1/sso/configurations/:id', ssoConfigurationDeleteHandler);
+  app.post('/v1/sso/configurations/:id/test', ssoConfigurationTestHandler);
   
   // SSO Login flow
   app.post('/v1/auth/sso/login', ssoLoginInitHandler);

@@ -43,7 +43,7 @@ Future<Response> meDashboardHandler(Request req) async {
 
   // 2. Load training obligations (courses assigned to this employee)
   final obligations = await supabase
-      .from('training_obligations')
+      .from('employee_training_obligations')
       .select('''
         id, status, due_date, assigned_at, completed_at,
         courses!inner(id, name, course_code, duration_hours),
