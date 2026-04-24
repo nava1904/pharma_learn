@@ -1,80 +1,95 @@
-PharmaLearn — API Layer: Relic Monorepo (flutter_elog Structure)
-Context
+# PharmaLearn — API Layer: Relic Monorepo (flutter_elog Structure)
+
+## Context
+
 The PostgreSQL schema (v2, ~232 tables) is frozen and scores 13/13 on the 21 CFR §11 checklist.
 This plan replaces the previous Dart Frog multi-server plan. The revised approach uses:
 
-Framework: relic: ^1.2.0 (modern independent Dart server by Serverpod team — NOT Serverpod ORM) — Serverpod ORM is NOT used, Dart Frog is NOT used, Shelf is NOT used
-Relic — trie-based router, strongly typed headers, RelicApp() with ..get(), ..post(), ..use() method chaining; path params via Symbols req.pathParameters[#id]; requires Dart ^3.8.0
-Structure: apps/api_server/pharma_learn/ with api/ + lifecycle_monitor/ + workflow_engine/ sub-servers, mirroring flutter_elog exactly
-Shared package: packages/pharmalearn_shared/
-Flutter state management: MobX (flutter_mobx + mobx + mobx_codegen) — NOT Riverpod, NOT BLoC
-Apple Principles (from docs/architecture_onpremise.md): Simplicity, Focus, Integration, Attention to Detail, UX First
-URS sources: ref/Learn IQ URS.pdf (EE/URS/23/022), ref/Learn IQ _ URS.pdf (Alfa A-SOP-QA-015-01-04-01), ref/notes.pdf (user manual)
-All domain plans: docs/access_plan.md, docs/create_plan.md, docs/train_plan.md, docs/certify_plan.md, docs/cross.md, docs/SCORM_SUPPORT.md, docs/API_TOOLS_REFERENCE.md
-Technology choices — locked
-Layer	Choice	Explicitly excluded
-API server framework	relic: ^1.2.0	Serverpod ORM, Dart Frog, Shelf, Aqueduct
-Flutter state management	mobx + flutter_mobx	Riverpod, BLoC, Provider
-DB access (server)	supabase Dart client (service role)	Serverpod ORM, Prisma
-Auth	GoTrue JWT (RS256) via dart_jsonwebtoken	Keycloak (allowed as OIDC IdP in sso_configurations only)
-Real-time	Supabase Realtime WebSocket	Redis Pub/Sub, RabbitMQ
-Background jobs	lifecycle_monitor Relic server + pg_notify	BullMQ, Celery
-Event bus	Supabase events_outbox + pg_notify	Redis, Kafka
-File storage	Supabase Storage	MinIO
-PDF generation	Supabase Edge Function (generates + stores)	Server-side Dart PDF
-SCORM version	SCORM 1.2 only	SCORM 2004 sequencing
-API gateway	NGINX reverse proxy	Kong
-Deployment	Docker Compose (prod) + Makefile (dev)	Kubernetes
-Observability	Structured JSON logs + Prometheus /metrics	DataDog, New Relic
-Flutter UI auto-gen	Vyuh entity system for config/CRUD screens	Custom code for workflow screens
-Push notifications	In-app (Supabase Realtime) + email (send-notification Edge Function)	FCM
-Flutter DI	get_it + injectable	Provider, Riverpod
-Offline caching	Hive (4 scenarios) with server-wins conflict resolution	SQLite
-SCORM CMI delivery	JS bridge (flutter_inappwebview) → Flutter → POST /v1/scorm/:id/commit	Direct fetch from WebView
-API versioning	URL versioning /v1/ and /v2/ co-exist in same Relic process	Header versioning
-MobX side effects	reaction() in widget initState / dispose	NavigationStore, autorun
-Apple Principles applied to API design:
+- **Framework**: `relic: ^1.2.0` (modern independent Dart server by Serverpod team — NOT Serverpod ORM) — **Serverpod ORM is NOT used**, **Dart Frog is NOT used**, **Shelf is NOT used**
+- **Relic** — trie-based router, strongly typed headers, `RelicApp()` with `..get()`, `..post()`, `..use()` method chaining; path params via Symbols `req.pathParameters[#id]`; requires Dart ^3.8.0
+- **Structure**: `apps/api_server/pharma_learn/` with `api/` + `lifecycle_monitor/` + `workflow_engine/` sub-servers, mirroring flutter_elog exactly
+- **Shared package**: `packages/pharmalearn_shared/`
+- **Flutter state management**: **MobX** (`flutter_mobx` + `mobx` + `mobx_codegen`) — NOT Riverpod, NOT BLoC
+- **Apple Principles** (from `docs/architecture_onpremise.md`): Simplicity, Focus, Integration, Attention to Detail, UX First
+- **URS sources**: `ref/Learn IQ URS.pdf` (EE/URS/23/022), `ref/Learn IQ _ URS.pdf` (Alfa A-SOP-QA-015-01-04-01), `ref/notes.pdf` (user manual)
+- **All domain plans**: `docs/access_plan.md`, `docs/create_plan.md`, `docs/train_plan.md`, `docs/certify_plan.md`, `docs/cross.md`, `docs/SCORM_SUPPORT.md`, `docs/API_TOOLS_REFERENCE.md`
 
-Simplicity — 3 processes (api + lifecycle_monitor + workflow_engine); one consistent response envelope; one Dart everywhere
-Focus — 5 route domains (access, create, train, certify, workflow) each doing one thing well
-Integration — DB + API + events designed together; events_outbox + pg_notify for cross-domain coordination
-Attention to Detail — RFC 7807 errors with actionable messages; every edge case (lockout, reauth expiry, two-person revoke) handled at DB + API layer
-UX First — < 100ms API response (p95); consistent {data, meta, error} envelope; self-documenting OpenAPI
-Confirmed Architectural Decisions (Interview-Grilled)
-#	Decision	Choice	Notes
-1	Event bus	Supabase + pg_notify only	No Redis, Kafka
-2	Server count	3 processes: api :8080, lifecycle_monitor :8086, workflow_engine :8085	
-3	SSO	GoTrue primary; Keycloak allowed as OIDC IdP via sso_configurations	
-4	File storage	Supabase Storage only	No MinIO
-5	PDF generation	Edge Function generates + stores; GET /download returns signed URL	
-6	SCORM version	SCORM 1.2 only	No SCORM 2004 sequencing
-7	API gateway	NGINX only	No Kong
-8	Deployment	Docker Compose (prod) + Makefile (dev: make dev → dart run × 3)	
-9	Real-time	Supabase Realtime backbone; Relic WS for proctoring + live trainer dashboard	
-10	Observability	Structured JSON logs + Prometheus /metrics on each server	
-11	Vyuh	Auto-gen: config tables + list/detail CRUD; Custom: login, e-sig, assessment, check-in, OJT, compliance	
-12	Multi-tenancy	RLS for user reads (user-scoped client); service role for admin writes	
-13	Password transport	Plain over HTTPS → GoTrue + argon2id server-side	No client-side hashing
-14	Token refresh	Supabase auto-refresh + Dio interceptor retry on 401	
-15	Push notifications	In-app via Supabase Realtime + email via send-notification Edge Function	No FCM
-16	Induction gate	Defense-in-depth: auth_middleware (403) + go_router redirect	
-17	E-sig reauth UX	Password asked once per 30-min window (flutter_secure_storage); one reauth per action	
-18	Assessment proctoring	Server-side timing + rapid submission detection only	
-19	Compliance metrics	Pre-computed employees.compliance_percent by lifecycle_monitor every 6h	
-20	Permission caching	JWT claims embed permissions array (auth-hook Edge Function); no per-request DB call	
-21	Certificate verify	Minimal public response: name, course, dates, status, org only	No employee ID in response
-22	workflow_engine trigger	pg_notify + 5s poll (identical pattern to lifecycle_monitor)	
-23	API versioning	URL versioning: /v1/ and /v2/ co-exist; additive-only within a version	
-24	MobX side effects	reaction() in widget initState; dispose in dispose()	
-25	Vyuh screens breakdown	Auto-gen: config tables, venues, roles, groups, delegations, trainers, question banks, competencies, periodic reviews	Custom: login, MFA, induction, assessment, check-in, document approval, OJT sign-off, cert revoke, compliance dashboard, e-sig dialog
-26	auth-hook state	Hook exists with employee_id/org_id/plant_id; ADD permissions array + induction_completed	In supabase/functions/auth-hook/index.ts
-27	Local dev setup	make dev → supabase start + 3× dart run; make prod → docker-compose.prod.yml	
-28	Notification dispatch	lifecycle_monitor jobs call supabase.functions.invoke('send-notification') directly	Reads mail_event_templates
-29	workflow_engine routes	Internal-only: WorkflowListenerService calls its own route handlers; no external exposure	Routes: /internal/workflow/advance-step, /internal/workflow/complete, /health
-30	Offline sync conflict	Server-wins: if record exists, cached offline data is discarded (no-op upsert)	
-31	SCORM CMI commit	JS bridge (flutter_inappwebview) → LMSCommit() handler → scormStore.commitCmi() → POST /v1/scorm/:id/commit	
-32	Build runner / codegen	Single dart run build_runner build --delete-conflicting-outputs; Makefile targets: make codegen, make codegen-watch	
-Top-Level Folder Structure
+### Technology choices — locked
+
+| Layer | Choice | Explicitly excluded |
+|-------|--------|-------------------|
+| API server framework | `relic: ^1.2.0` | Serverpod ORM, Dart Frog, Shelf, Aqueduct |
+| Flutter state management | `mobx` + `flutter_mobx` | Riverpod, BLoC, Provider |
+| DB access (server) | `supabase` Dart client (service role) | Serverpod ORM, Prisma |
+| Auth | GoTrue JWT (RS256) via `dart_jsonwebtoken` | Keycloak (allowed as OIDC IdP in sso_configurations only) |
+| Real-time | Supabase Realtime WebSocket | Redis Pub/Sub, RabbitMQ |
+| Background jobs | `lifecycle_monitor` Relic server + `pg_notify` | BullMQ, Celery |
+| Event bus | Supabase `events_outbox` + `pg_notify` | Redis, Kafka |
+| File storage | Supabase Storage | MinIO |
+| PDF generation | Supabase Edge Function (generates + stores) | Server-side Dart PDF |
+| SCORM version | SCORM 1.2 only | SCORM 2004 sequencing |
+| API gateway | NGINX reverse proxy | Kong |
+| Deployment | Docker Compose (prod) + Makefile (dev) | Kubernetes |
+| Observability | Structured JSON logs + Prometheus `/metrics` | DataDog, New Relic |
+| Flutter UI auto-gen | Vyuh entity system for config/CRUD screens | Custom code for workflow screens |
+| Push notifications | In-app (Supabase Realtime) + email (send-notification Edge Function) | FCM |
+| Flutter DI | `get_it` + `injectable` | Provider, Riverpod |
+| Offline caching | Hive (4 scenarios) with server-wins conflict resolution | SQLite |
+| SCORM CMI delivery | JS bridge (flutter_inappwebview) → Flutter → POST /v1/scorm/:id/commit | Direct fetch from WebView |
+| API versioning | URL versioning `/v1/` and `/v2/` co-exist in same Relic process | Header versioning |
+| MobX side effects | `reaction()` in widget `initState` / `dispose` | NavigationStore, autorun |
+
+**Apple Principles applied to API design:**
+1. **Simplicity** — 3 processes (api + lifecycle_monitor + workflow_engine); one consistent response envelope; one Dart everywhere
+2. **Focus** — 5 route domains (access, create, train, certify, workflow) each doing one thing well
+3. **Integration** — DB + API + events designed together; `events_outbox` + `pg_notify` for cross-domain coordination
+4. **Attention to Detail** — RFC 7807 errors with actionable messages; every edge case (lockout, reauth expiry, two-person revoke) handled at DB + API layer
+5. **UX First** — < 100ms API response (p95); consistent `{data, meta, error}` envelope; self-documenting OpenAPI
+
+---
+
+## Confirmed Architectural Decisions (Interview-Grilled)
+
+| # | Decision | Choice | Notes |
+|---|----------|--------|-------|
+| 1 | Event bus | Supabase + pg_notify only | No Redis, Kafka |
+| 2 | Server count | 3 processes: api :8080, lifecycle_monitor :8086, workflow_engine :8085 | |
+| 3 | SSO | GoTrue primary; Keycloak allowed as OIDC IdP via sso_configurations | |
+| 4 | File storage | Supabase Storage only | No MinIO |
+| 5 | PDF generation | Edge Function generates + stores; GET /download returns signed URL | |
+| 6 | SCORM version | SCORM 1.2 only | No SCORM 2004 sequencing |
+| 7 | API gateway | NGINX only | No Kong |
+| 8 | Deployment | Docker Compose (prod) + Makefile (dev: `make dev` → dart run × 3) | |
+| 9 | Real-time | Supabase Realtime backbone; Relic WS for proctoring + live trainer dashboard | |
+| 10 | Observability | Structured JSON logs + Prometheus `/metrics` on each server | |
+| 11 | Vyuh | Auto-gen: config tables + list/detail CRUD; Custom: login, e-sig, assessment, check-in, OJT, compliance | |
+| 12 | Multi-tenancy | RLS for user reads (user-scoped client); service role for admin writes | |
+| 13 | Password transport | Plain over HTTPS → GoTrue + argon2id server-side | No client-side hashing |
+| 14 | Token refresh | Supabase auto-refresh + Dio interceptor retry on 401 | |
+| 15 | Push notifications | In-app via Supabase Realtime + email via send-notification Edge Function | No FCM |
+| 16 | Induction gate | Defense-in-depth: auth_middleware (403) + go_router redirect | |
+| 17 | E-sig reauth UX | Password asked once per 30-min window (flutter_secure_storage); one reauth per action | |
+| 18 | Assessment proctoring | Server-side timing + rapid submission detection only | |
+| 19 | Compliance metrics | Pre-computed `employees.compliance_percent` by lifecycle_monitor every 6h | |
+| 20 | Permission caching | JWT claims embed permissions array (auth-hook Edge Function); no per-request DB call | |
+| 21 | Certificate verify | Minimal public response: name, course, dates, status, org only | No employee ID in response |
+| 22 | workflow_engine trigger | pg_notify + 5s poll (identical pattern to lifecycle_monitor) | |
+| 23 | API versioning | URL versioning: /v1/ and /v2/ co-exist; additive-only within a version | |
+| 24 | MobX side effects | `reaction()` in widget initState; dispose in `dispose()` | |
+| 25 | Vyuh screens breakdown | Auto-gen: config tables, venues, roles, groups, delegations, trainers, question banks, competencies, periodic reviews | Custom: login, MFA, induction, assessment, check-in, document approval, OJT sign-off, cert revoke, compliance dashboard, e-sig dialog |
+| 26 | auth-hook state | Hook exists with employee_id/org_id/plant_id; ADD permissions array + induction_completed | In supabase/functions/auth-hook/index.ts |
+| 27 | Local dev setup | `make dev` → supabase start + 3× dart run; `make prod` → docker-compose.prod.yml | |
+| 28 | Notification dispatch | lifecycle_monitor jobs call supabase.functions.invoke('send-notification') directly | Reads mail_event_templates |
+| 29 | workflow_engine routes | Internal-only: WorkflowListenerService calls its own route handlers; no external exposure | Routes: /internal/workflow/advance-step, /internal/workflow/complete, /health |
+| 30 | Offline sync conflict | Server-wins: if record exists, cached offline data is discarded (no-op upsert) | |
+| 31 | SCORM CMI commit | JS bridge (flutter_inappwebview) → LMSCommit() handler → scormStore.commitCmi() → POST /v1/scorm/:id/commit | |
+| 32 | Build runner / codegen | Single `dart run build_runner build --delete-conflicting-outputs`; Makefile targets: `make codegen`, `make codegen-watch` | |
+
+---
+
+## Top-Level Folder Structure
+
+```
 pharma_learn/              ← repo root (supabase/ already exists)
   apps/
     api_server/
@@ -88,9 +103,15 @@ pharma_learn/              ← repo root (supabase/ already exists)
   supabase/                ← (already exists — frozen)
   ref/                     ← (already exists — PDFs)
   docs/                    ← (already exists — plans)
-packages/pharmalearn_shared/
+```
+
+---
+
+## `packages/pharmalearn_shared/`
+
 Shared code consumed by all three servers. No HTTP server — pure Dart library.
 
+```
 packages/pharmalearn_shared/
   pubspec.yaml
   lib/
@@ -125,8 +146,10 @@ packages/pharmalearn_shared/
         error_handler.dart             ← Exception → HTTP status + RFC 7807 body
         permission_checker.dart        ← check_permission() RPC wrapper
         constants.dart                 ← Permission names, event types, route prefixes
-pubspec.yaml (shared):
+```
 
+**`pubspec.yaml` (shared):**
+```yaml
 name: pharmalearn_shared
 version: 1.0.0
 environment:
@@ -147,10 +170,17 @@ dev_dependencies:
   lints: ^3.0.0
   test: ^1.25.0
   mocktail: ^1.0.1
-apps/api_server/pharma_learn/api/ — Main API Server (port 8080)
+```
+
+---
+
+## `apps/api_server/pharma_learn/api/` — Main API Server (port 8080)
+
 Handles ALL domain endpoints. Routes organized into 5 domain modules.
 
-Internal structure
+### Internal structure
+
+```
 api/
   bin/
     server.dart                       ← Entry point; Pipeline + createRouter()
@@ -212,6 +242,7 @@ api/
           consent_withdraw_handler.dart ← POST /v1/consent/[id]/withdraw
           routes.dart
         routes.dart                   ← Access domain aggregator
+
       create/                         ← DOCUMENTS, COURSES, GTPS, QUESTION BANKS, CONFIG
         documents/
           documents_handler.dart      ← GET|POST /v1/documents
@@ -295,6 +326,7 @@ api/
           category_handler.dart       ← GET|PATCH /v1/categories/[id]
           routes.dart
         routes.dart                   ← Create domain aggregator
+
       train/                          ← SCHEDULES, SESSIONS, OJT, INDUCTION, SELF-LEARNING
         schedules/
           schedules_handler.dart      ← GET|POST /v1/schedules
@@ -355,6 +387,7 @@ api/
         compliance_report_handler.dart ← GET /v1/compliance-report (dept/plant view)
         triggers_handler.dart          ← POST /v1/triggers/process (SOP update → re-enroll)
         routes.dart                   ← Train domain aggregator
+
       certify/                        ← ASSESSMENTS, CERTIFICATES, COMPLIANCE, E-SIGNATURES
         assessments/
           assessment_start_handler.dart    ← POST /v1/assessments/start
@@ -408,6 +441,7 @@ api/
           integrity_verify_handler.dart ← POST /v1/integrity/verify (hash chain, admin only)
           routes.dart
         routes.dart                   ← Certify domain aggregator
+
       workflow/                       ← APPROVALS, NOTIFICATIONS, AUDIT TRAIL, QUALITY
         approvals/
           approvals_pending_handler.dart  ← GET /v1/approvals/pending
@@ -443,10 +477,12 @@ api/
           change_control_submit_handler.dart ← POST /v1/quality/change-controls/[id]/submit
           routes.dart
         routes.dart                   ← Workflow domain aggregator
+
       health/
         health_handler.dart           ← GET /health (liveness)
         health_detailed_handler.dart  ← GET /health/detailed (readiness + DB ping)
         routes.dart
+
       routes.dart                     ← Master router: mounts all 5 domain routers + health
     services/
       scorm_parser_service.dart       ← SCORM zip extraction + manifest parsing
@@ -472,8 +508,10 @@ api/
   analysis_options.yaml
   .env.local                          ← local dev overrides (gitignored)
   env-vars.yaml                       ← documented env var schema
-pubspec.yaml (api):
+```
 
+**`pubspec.yaml` (api):**
+```yaml
 name: pharma_learn_api
 version: 1.0.0
 environment:
@@ -494,9 +532,15 @@ dev_dependencies:
   lints: ^3.0.0
   test: ^1.25.0
   mocktail: ^1.0.1
-apps/api_server/pharma_learn/lifecycle_monitor/ (port 8086, internal)
-Runs cron-triggered jobs and pg_listen event fanout.
+```
 
+---
+
+## `apps/api_server/pharma_learn/lifecycle_monitor/` (port 8086, internal)
+
+Runs cron-triggered jobs and `pg_listen` event fanout.
+
+```
 lifecycle_monitor/
   bin/server.dart
   lib/
@@ -520,11 +564,17 @@ lifecycle_monitor/
       job_scheduler_service.dart        ← Polls pending cron triggers
     lifecycle_monitor.dart
   pubspec.yaml
-Middleware Pipeline (per request in api/)
+```
+
+---
+
+## Middleware Pipeline (per request in `api/`)
+
 Order: Logger → CORS → Supabase-inject → Auth → RateLimit → [EsigCheck if route requires] → Handler
 
-Relic uses app.use('/', middleware) for global middleware and the Middleware typedef (Handler Function(Handler)) identical to Shelf's pattern, making the middleware logic portable.
+Relic uses `app.use('/', middleware)` for global middleware and the `Middleware` typedef (`Handler Function(Handler)`) identical to Shelf's pattern, making the middleware logic portable.
 
+```dart
 // pharma_learn_api.dart  — server setup with Relic
 import 'package:relic/relic.dart';
 import 'package:pharmalearn_shared/pharmalearn_shared.dart';
@@ -564,6 +614,9 @@ Future<void> main() async {
   await app.serve(port: port);
   print('PharmaLearn API running on :$port');
 }
+```
+
+```dart
 // routes/access/routes.dart — domain router mount
 void mountAccessRoutes(RelicApp app) {
   app
@@ -583,35 +636,48 @@ void mountAccessRoutes(RelicApp app) {
     ..patch('/v1/employees/:id',        employeePatchHandler);
     // ... remaining access routes
 }
+```
+
+```dart
 // Handler — path param access with Relic symbols
 Future<Response> employeeGetHandler(Request req) async {
   final id       = req.pathParameters[#id]!;   // symbol-based, not string
   final supabase = req.context['supabase'] as SupabaseClient;
   // ...
 }
-auth_middleware.dart — 5 steps (Relic Middleware = Handler Function(Handler)):
-Extract Authorization: Bearer <jwt>
-Verify RS256 via GoTrue JWKS; skip for public paths (/health, /v1/auth/login, etc.)
-Load user_sessions row by jwt_id (jti claim); check revoked_at IS NULL AND expires_at > NOW()
-Idle-timeout: if last_activity_at < NOW() - idle_timeout_seconds → call revoke_user_session() RPC → 401 SESSION_TIMEOUT
-Update last_activity_at = NOW() + inject AuthContext into req.context['auth']
-esig_middleware.dart — per-route wrap (not global):
-Read body JSON and cache in req.context['body'] (body can only be read once in Relic)
-Extract e_signature.reauth_session_id from cached body OR Authorization-Reauth header
-Call validate_reauth_session(reauth_id) RPC
-Verify is_first_in_session — if TRUE require both password+identifier (§11.200(a)); if FALSE password only
-Inject EsigContext into req.context['esig']
-error_handler.dart — RFC 7807 mapping (Relic fallback error handler):
-Exception	HTTP	type
-PermissionDeniedException	403	/errors/permission-denied
-NotFoundException	404	/errors/not-found
-ValidationException	422	/errors/validation
-EsigRequiredException	428	/errors/esig-required
-ImmutableRecordException	409	/errors/immutable-record
-AccountLockedException	423	/errors/account-locked
-SessionTimeoutException	401	/errors/session-timeout
-InductionGateException	403	/errors/induction-required
-Handler Pattern (every *_handler.dart follows this)
+```
+
+### `auth_middleware.dart` — 5 steps (Relic `Middleware` = `Handler Function(Handler)`):
+1. Extract `Authorization: Bearer <jwt>`
+2. Verify RS256 via GoTrue JWKS; skip for public paths (`/health`, `/v1/auth/login`, etc.)
+3. Load `user_sessions` row by `jwt_id` (jti claim); check `revoked_at IS NULL AND expires_at > NOW()`
+4. Idle-timeout: if `last_activity_at < NOW() - idle_timeout_seconds` → call `revoke_user_session()` RPC → 401 `SESSION_TIMEOUT`
+5. Update `last_activity_at = NOW()` + inject `AuthContext` into `req.context['auth']`
+
+### `esig_middleware.dart` — per-route wrap (not global):
+1. Read body JSON and cache in `req.context['body']` (body can only be read once in Relic)
+2. Extract `e_signature.reauth_session_id` from cached body OR `Authorization-Reauth` header
+3. Call `validate_reauth_session(reauth_id)` RPC
+4. Verify `is_first_in_session` — if TRUE require both password+identifier (§11.200(a)); if FALSE password only
+5. Inject `EsigContext` into `req.context['esig']`
+
+### `error_handler.dart` — RFC 7807 mapping (Relic fallback error handler):
+| Exception | HTTP | type |
+|-----------|------|------|
+| `PermissionDeniedException` | 403 | `/errors/permission-denied` |
+| `NotFoundException` | 404 | `/errors/not-found` |
+| `ValidationException` | 422 | `/errors/validation` |
+| `EsigRequiredException` | 428 | `/errors/esig-required` |
+| `ImmutableRecordException` | 409 | `/errors/immutable-record` |
+| `AccountLockedException` | 423 | `/errors/account-locked` |
+| `SessionTimeoutException` | 401 | `/errors/session-timeout` |
+| `InductionGateException` | 403 | `/errors/induction-required` |
+
+---
+
+## Handler Pattern (every `*_handler.dart` follows this)
+
+```dart
 // routes/access/auth/login_handler.dart
 import 'package:relic/relic.dart';
 import 'package:pharmalearn_shared/pharmalearn_shared.dart';
@@ -643,6 +709,9 @@ Future<Response> loginHandler(Request req) async {
 
   return ApiResponse.ok({'session': session.session, 'user': session.user}).toResponse();
 }
+```
+
+```dart
 // routes/access/routes.dart — access domain mount function (no Router class needed)
 import 'package:relic/relic.dart';
 import 'auth/login_handler.dart';
@@ -671,6 +740,9 @@ void mountAccessRoutes(RelicApp app) {
     ..get( '/v1/delegations',            delegationsListHandler)
     ..post('/v1/delegations',            delegationsCreateHandler);
 }
+```
+
+```dart
 // pharma_learn_api.dart — master mount (replaces old Router.mount pattern)
 void mountHealthRoutes(RelicApp app) {
   app
@@ -681,127 +753,164 @@ void mountHealthRoutes(RelicApp app) {
 // Path param access uses Symbol keys in Relic:
 // Route: '/v1/employees/:id'
 // Handler: final id = req.pathParameters[#id]!;
-E-Signature Flow (21 CFR §11.200)
-Every [esig]-annotated endpoint follows this 6-step flow:
+```
 
-Client: POST /v1/reauth/create → {reauth_session_id} (30-min TTL from system_settings['security.password_reauth_window_min'])
-Client: calls target endpoint with body {..., e_signature: {reauth_session_id, meaning, reason, is_first_in_session}}
-esig_middleware: calls validate_reauth_session(reauth_session_id) RPC → verifies not expired, not consumed
-Handler: calls create_esignature(employee_id, meaning, entity_type, entity_id, ...) RPC → returns esig_id
-Handler: stores esig_id FK on entity (e.g. approvals.esig_id); calls consume_reauth_session(reauth_session_id) RPC
-Handler: calls publish_event() to write to events_outbox (same logical transaction)
-Two-Person Certificate Revocation (ALCOA+ / M-06)
-POST /v1/certificates/[id]/revoke requires TWO separate e_signature objects:
+---
 
-e_signature_primary: first authorized person (e.g. QA Manager)
-e_signature_secondary: second authorized person (different employee, different role tier)
-The DB chk_two_person_revocation and chk_revoke_different_persons CHECK constraints enforce this at DB level. The handler validates both reauth sessions, creates two electronic_signatures rows, and stores both FKs before the revocation commits.
+## E-Signature Flow (21 CFR §11.200)
 
-URS Full Coverage Map
-URS Clause	Domain	Endpoint(s)
-Alfa §3.1.41-47 (password controls)	access	POST /v1/auth/password/change, GET /v1/config/password-policies
-Alfa §4.2.1.16-21 (GTP management)	create, train	POST /v1/gtps, POST /v1/schedules
-Alfa §4.2.1.25 (TNI + curricula)	train	POST /v1/schedules/[id]/assign, POST /v1/curricula
-Alfa §4.2.1.28 (auto-numbering)	create	POST /v1/config/numbering-schemes/[id]/next
-Alfa §4.2.1.34 (e-sig on submit)	create, certify	POST .../submit (all submit endpoints)
-Alfa §4.3.3 (plant-wise list)	train, certify	GET /v1/compliance/dashboard
-Alfa §4.3.4 (configurable approval)	create, workflow	POST /v1/config/approval-matrices
-Alfa §4.3.11 (OJT witness)	train	POST /v1/ojt/[id]/sign-off
-Alfa §4.3.12 (training waiver)	train, certify	POST /v1/waivers, POST /v1/obligations/[id]/waive
-Alfa §4.3.19 (post-dated records)	train	PATCH /v1/sessions/[id]/attendance/[empId]
-Alfa §4.4.6 (unplanned leave delegation)	access	POST /v1/delegations
-Alfa §4.4.8 (periodic review)	create	POST /v1/periodic-reviews/[id]/complete
-Alfa §4.5.1-5 (login + lockout)	access	POST /v1/auth/login (validate_credential RPC)
-Alfa §4.5.9 (biometric login)	access	POST /v1/auth/biometric/login
-Alfa §4.5.2-7 (SSO/AD)	access	POST /v1/auth/sso/login, POST /v1/sso/configurations
-Alfa §4.6.1.9 (RTO ≤15 min)	lifecycle_monitor	GET /health, business_continuity_plans
-EE §5.1.6 (induction gate)	train	POST /v1/induction/complete
-EE §5.1.7 (graphical progress)	train	GET /v1/me/dashboard
-EE §5.1.8 (attendance)	train	POST /v1/sessions/[id]/check-in
-EE §5.1.10 (waiver)	train, certify	POST /v1/obligations/[id]/waive
-EE §5.1.15 (competency)	certify	GET
-EE §5.1.20 (course approval)	create	POST /v1/courses/[id]/approve
-EE §5.1.27-45 (Training Coordinator)	train	POST /v1/coordinators
-EE §5.4.2 (AD/SSO)	access	POST /v1/sso/configurations
-EE §5.6.10 (session security/idle)	access	auth_middleware idle-timeout
-EE §5.9.2 (password management)	access	POST /v1/auth/password/change
-EE §5.13.4-5 (retention + archival)	lifecycle_monitor	POST /jobs/archive
-SCORM (§5.x content delivery)	create	POST /v1/scorm/packages, GET /v1/scorm/[id]/launch
-21 CFR §11.10(c) (record protection)	certify	POST /v1/integrity/verify
-21 CFR §11.10(e) (audit trail)	workflow	GET /v1/audit/[type]/[id]
-21 CFR §11.50 (sig manifestation)	certify	POST /v1/esignatures/create
-21 CFR §11.100(b) (unique username)	access	employees.username immutable trigger (DB)
-21 CFR §11.200 (e-sig session chain)	certify	POST /v1/reauth/create + esig_middleware
-21 CFR §11.300 (password controls)	access	password_policies + user_credentials
-M-06 (two-person cert revocation)	certify	POST /v1/certificates/[id]/revoke
-Environment Variables (.env.local)
+Every `[esig]`-annotated endpoint follows this 6-step flow:
+
+1. **Client**: `POST /v1/reauth/create` → `{reauth_session_id}` (30-min TTL from `system_settings['security.password_reauth_window_min']`)
+2. **Client**: calls target endpoint with body `{..., e_signature: {reauth_session_id, meaning, reason, is_first_in_session}}`
+3. **`esig_middleware`**: calls `validate_reauth_session(reauth_session_id)` RPC → verifies not expired, not consumed
+4. **Handler**: calls `create_esignature(employee_id, meaning, entity_type, entity_id, ...)` RPC → returns `esig_id`
+5. **Handler**: stores `esig_id` FK on entity (e.g. `approvals.esig_id`); calls `consume_reauth_session(reauth_session_id)` RPC
+6. **Handler**: calls `publish_event()` to write to `events_outbox` (same logical transaction)
+
+---
+
+## Two-Person Certificate Revocation (ALCOA+ / M-06)
+
+`POST /v1/certificates/[id]/revoke` requires TWO separate `e_signature` objects:
+- `e_signature_primary`: first authorized person (e.g. QA Manager)
+- `e_signature_secondary`: second authorized person (different employee, different role tier)
+
+The DB `chk_two_person_revocation` and `chk_revoke_different_persons` CHECK constraints enforce this at DB level. The handler validates both reauth sessions, creates two `electronic_signatures` rows, and stores both FKs before the revocation commits.
+
+---
+
+## URS Full Coverage Map
+
+| URS Clause | Domain | Endpoint(s) |
+|---|---|---|
+| Alfa §3.1.41-47 (password controls) | access | POST /v1/auth/password/change, GET /v1/config/password-policies |
+| Alfa §4.2.1.16-21 (GTP management) | create, train | POST /v1/gtps, POST /v1/schedules |
+| Alfa §4.2.1.25 (TNI + curricula) | train | POST /v1/schedules/[id]/assign, POST /v1/curricula |
+| Alfa §4.2.1.28 (auto-numbering) | create | POST /v1/config/numbering-schemes/[id]/next |
+| Alfa §4.2.1.34 (e-sig on submit) | create, certify | POST .../submit (all submit endpoints) |
+| Alfa §4.3.3 (plant-wise list) | train, certify | GET /v1/compliance/dashboard |
+| Alfa §4.3.4 (configurable approval) | create, workflow | POST /v1/config/approval-matrices |
+| Alfa §4.3.11 (OJT witness) | train | POST /v1/ojt/[id]/sign-off |
+| Alfa §4.3.12 (training waiver) | train, certify | POST /v1/waivers, POST /v1/obligations/[id]/waive |
+| Alfa §4.3.19 (post-dated records) | train | PATCH /v1/sessions/[id]/attendance/[empId] |
+| Alfa §4.4.6 (unplanned leave delegation) | access | POST /v1/delegations |
+| Alfa §4.4.8 (periodic review) | create | POST /v1/periodic-reviews/[id]/complete |
+| Alfa §4.5.1-5 (login + lockout) | access | POST /v1/auth/login (validate_credential RPC) |
+| Alfa §4.5.9 (biometric login) | access | POST /v1/auth/biometric/login |
+| Alfa §4.5.2-7 (SSO/AD) | access | POST /v1/auth/sso/login, POST /v1/sso/configurations |
+| Alfa §4.6.1.9 (RTO ≤15 min) | lifecycle_monitor | GET /health, business_continuity_plans |
+| EE §5.1.6 (induction gate) | train | POST /v1/induction/complete |
+| EE §5.1.7 (graphical progress) | train | GET /v1/me/dashboard |
+| EE §5.1.8 (attendance) | train | POST /v1/sessions/[id]/check-in |
+| EE §5.1.10 (waiver) | train, certify | POST /v1/obligations/[id]/waive |
+| EE §5.1.15 (competency) | certify | GET|POST /v1/competencies |
+| EE §5.1.20 (course approval) | create | POST /v1/courses/[id]/approve |
+| EE §5.1.27-45 (Training Coordinator) | train | POST /v1/coordinators |
+| EE §5.4.2 (AD/SSO) | access | POST /v1/sso/configurations |
+| EE §5.6.10 (session security/idle) | access | auth_middleware idle-timeout |
+| EE §5.9.2 (password management) | access | POST /v1/auth/password/change |
+| EE §5.13.4-5 (retention + archival) | lifecycle_monitor | POST /jobs/archive |
+| SCORM (§5.x content delivery) | create | POST /v1/scorm/packages, GET /v1/scorm/[id]/launch |
+| 21 CFR §11.10(c) (record protection) | certify | POST /v1/integrity/verify |
+| 21 CFR §11.10(e) (audit trail) | workflow | GET /v1/audit/[type]/[id] |
+| 21 CFR §11.50 (sig manifestation) | certify | POST /v1/esignatures/create |
+| 21 CFR §11.100(b) (unique username) | access | employees.username immutable trigger (DB) |
+| 21 CFR §11.200 (e-sig session chain) | certify | POST /v1/reauth/create + esig_middleware |
+| 21 CFR §11.300 (password controls) | access | password_policies + user_credentials |
+| M-06 (two-person cert revocation) | certify | POST /v1/certificates/[id]/revoke |
+
+---
+
+## Environment Variables (`.env.local`)
+
+```
 SUPABASE_URL=http://localhost:54321
 SUPABASE_SERVICE_ROLE_KEY=eyJ...
 SUPABASE_ANON_KEY=eyJ...
 SUPABASE_STORAGE_BUCKET=pharmalearn-files
+
 PORT=8080
 LIFECYCLE_MONITOR_PORT=8086
 WORKFLOW_ENGINE_PORT=8085
+
 ALLOWED_ORIGINS=http://localhost:3000,https://app.pharmalearn.internal
 LOG_LEVEL=info
+
 # Lifecycle Monitor job intervals (seconds)
 JOB_INTEGRITY_CHECK_INTERVAL=86400
 JOB_CERT_EXPIRY_INTERVAL=3600
 JOB_OVERDUE_TRAINING_INTERVAL=3600
 JOB_EVENTS_POLL_INTERVAL=5
-Critical Files to Create (Ordered by dependency)
-#	Path	Purpose
-1	packages/pharmalearn_shared/pubspec.yaml	Shared package
-2	packages/pharmalearn_shared/lib/src/client/supabase_client.dart	Service-role singleton
-3	packages/pharmalearn_shared/lib/src/middleware/auth_middleware.dart	JWT + session idle-timeout
-4	packages/pharmalearn_shared/lib/src/middleware/esig_middleware.dart	§11.200 reauth validation
-5	packages/pharmalearn_shared/lib/src/middleware/rate_limit_middleware.dart	Token bucket
-6	packages/pharmalearn_shared/lib/src/models/api_response.dart	{data, meta, error}
-7	packages/pharmalearn_shared/lib/src/utils/error_handler.dart	RFC 7807 mapping
-8	packages/pharmalearn_shared/lib/src/services/esig_service.dart	Reauth RPC wrappers
-9	packages/pharmalearn_shared/lib/src/services/outbox_service.dart	publish_event()
-10	packages/pharmalearn_shared/lib/pharmalearn_shared.dart	Barrel export
-11	apps/api_server/pharma_learn/api/pubspec.yaml	Main API deps
-12	apps/api_server/pharma_learn/api/lib/pharma_learn_api.dart	Server setup + pipeline
-13	apps/api_server/pharma_learn/api/bin/server.dart	Entry point
-14	apps/api_server/pharma_learn/api/lib/context/request_context.dart	Auth context model
-15	apps/api_server/pharma_learn/api/lib/routes/routes.dart	Master router
-16	apps/api_server/pharma_learn/api/lib/routes/health/routes.dart	Health checks
-17	apps/api_server/pharma_learn/api/lib/routes/access/routes.dart	Access aggregator
-18	apps/api_server/pharma_learn/api/lib/routes/access/auth/login_handler.dart	Login
-19	apps/api_server/pharma_learn/api/lib/routes/access/auth/routes.dart	Auth routes
-20	apps/api_server/pharma_learn/api/lib/routes/access/employees/employees_handler.dart	Employees CRUD
-21	apps/api_server/pharma_learn/api/lib/routes/create/routes.dart	Create aggregator
-22	apps/api_server/pharma_learn/api/lib/routes/create/documents/document_approve_handler.dart	Doc approval + esig
-23	apps/api_server/pharma_learn/api/lib/routes/create/scorm/scorm_commit_handler.dart	SCORM CMI data
-24	apps/api_server/pharma_learn/api/lib/routes/train/routes.dart	Train aggregator
-25	apps/api_server/pharma_learn/api/lib/routes/train/sessions/session_checkin_handler.dart	QR/biometric check-in
-26	apps/api_server/pharma_learn/api/lib/routes/train/me/me_dashboard_handler.dart	Employee dashboard
-27	apps/api_server/pharma_learn/api/lib/routes/certify/routes.dart	Certify aggregator
-28	apps/api_server/pharma_learn/api/lib/routes/certify/reauth/reauth_create_handler.dart	§11.200 reauth
-29	apps/api_server/pharma_learn/api/lib/routes/certify/certificates/certificate_revoke_handler.dart	Two-person revoke
-30	apps/api_server/pharma_learn/api/lib/routes/certify/compliance/compliance_dashboard_handler.dart	KPI dashboard
-31	apps/api_server/pharma_learn/api/lib/routes/workflow/routes.dart	Workflow aggregator
-32	apps/api_server/pharma_learn/api/lib/routes/workflow/approvals/approvals_pending_handler.dart	Pending approvals
-33	apps/api_server/pharma_learn/lifecycle_monitor/pubspec.yaml	Lifecycle monitor deps
-34	apps/api_server/pharma_learn/lifecycle_monitor/bin/server.dart	Lifecycle entry point
-35	apps/api_server/pharma_learn/lifecycle_monitor/lib/routes/jobs/events_fanout_handler.dart	Outbox fanout
-36	apps/api_server/pharma_learn/lifecycle_monitor/lib/services/pg_listener_service.dart	pg_notify listener
-Verification Plan
-Unit tests — each *_handler.dart has a matching test using mocktail to mock SupabaseClient
-Integration smoke — dart test apps/api_server/pharma_learn/api/test/access/login_test.dart against local Supabase
-E-sig flow — POST /v1/reauth/create → POST /v1/documents/[id]/approve → verify electronic_signatures row with is_first_in_session=TRUE and prev_signature_id chain
-Two-person revoke — POST /v1/certificates/[id]/revoke with one signer → expect 422; with both different signers → expect 200 and DB CHECKs satisfied
-Idle-timeout — advance last_activity_at past threshold → next request → 401 SESSION_TIMEOUT + audit_trails row with event_category='SESSION_TIMEOUT'
-Rate limit — exceed api_rate_limits threshold → 429 Retry-After header
-Audit chain — after 10 API calls → POST /v1/integrity/verify → {is_valid: true}
-Induction gate — employee with induction_completed=false hits any non-induction endpoint → 403 InductionGateException
-SCORM flow — POST /v1/scorm/packages → GET /v1/scorm/[id]/launch → POST /v1/scorm/[id]/commit (CMI data) → GET /v1/scorm/[id]/progress reflects completion
-Health — GET :8080/health → {status: ok, latency_ms: <100}; GET :8086/health → {status: ok, events_outbox_lag: 0}
-Flutter Client — MobX Architecture
-State management is MobX (mobx + flutter_mobx + mobx_codegen). No Riverpod. No BLoC.
+```
 
-Flutter pubspec.yaml (apps/pharma_learn/pubspec.yaml)
+---
+
+## Critical Files to Create (Ordered by dependency)
+
+| # | Path | Purpose |
+|---|---|---|
+| 1 | `packages/pharmalearn_shared/pubspec.yaml` | Shared package |
+| 2 | `packages/pharmalearn_shared/lib/src/client/supabase_client.dart` | Service-role singleton |
+| 3 | `packages/pharmalearn_shared/lib/src/middleware/auth_middleware.dart` | JWT + session idle-timeout |
+| 4 | `packages/pharmalearn_shared/lib/src/middleware/esig_middleware.dart` | §11.200 reauth validation |
+| 5 | `packages/pharmalearn_shared/lib/src/middleware/rate_limit_middleware.dart` | Token bucket |
+| 6 | `packages/pharmalearn_shared/lib/src/models/api_response.dart` | `{data, meta, error}` |
+| 7 | `packages/pharmalearn_shared/lib/src/utils/error_handler.dart` | RFC 7807 mapping |
+| 8 | `packages/pharmalearn_shared/lib/src/services/esig_service.dart` | Reauth RPC wrappers |
+| 9 | `packages/pharmalearn_shared/lib/src/services/outbox_service.dart` | publish_event() |
+| 10 | `packages/pharmalearn_shared/lib/pharmalearn_shared.dart` | Barrel export |
+| 11 | `apps/api_server/pharma_learn/api/pubspec.yaml` | Main API deps |
+| 12 | `apps/api_server/pharma_learn/api/lib/pharma_learn_api.dart` | Server setup + pipeline |
+| 13 | `apps/api_server/pharma_learn/api/bin/server.dart` | Entry point |
+| 14 | `apps/api_server/pharma_learn/api/lib/context/request_context.dart` | Auth context model |
+| 15 | `apps/api_server/pharma_learn/api/lib/routes/routes.dart` | Master router |
+| 16 | `apps/api_server/pharma_learn/api/lib/routes/health/routes.dart` | Health checks |
+| 17 | `apps/api_server/pharma_learn/api/lib/routes/access/routes.dart` | Access aggregator |
+| 18 | `apps/api_server/pharma_learn/api/lib/routes/access/auth/login_handler.dart` | Login |
+| 19 | `apps/api_server/pharma_learn/api/lib/routes/access/auth/routes.dart` | Auth routes |
+| 20 | `apps/api_server/pharma_learn/api/lib/routes/access/employees/employees_handler.dart` | Employees CRUD |
+| 21 | `apps/api_server/pharma_learn/api/lib/routes/create/routes.dart` | Create aggregator |
+| 22 | `apps/api_server/pharma_learn/api/lib/routes/create/documents/document_approve_handler.dart` | Doc approval + esig |
+| 23 | `apps/api_server/pharma_learn/api/lib/routes/create/scorm/scorm_commit_handler.dart` | SCORM CMI data |
+| 24 | `apps/api_server/pharma_learn/api/lib/routes/train/routes.dart` | Train aggregator |
+| 25 | `apps/api_server/pharma_learn/api/lib/routes/train/sessions/session_checkin_handler.dart` | QR/biometric check-in |
+| 26 | `apps/api_server/pharma_learn/api/lib/routes/train/me/me_dashboard_handler.dart` | Employee dashboard |
+| 27 | `apps/api_server/pharma_learn/api/lib/routes/certify/routes.dart` | Certify aggregator |
+| 28 | `apps/api_server/pharma_learn/api/lib/routes/certify/reauth/reauth_create_handler.dart` | §11.200 reauth |
+| 29 | `apps/api_server/pharma_learn/api/lib/routes/certify/certificates/certificate_revoke_handler.dart` | Two-person revoke |
+| 30 | `apps/api_server/pharma_learn/api/lib/routes/certify/compliance/compliance_dashboard_handler.dart` | KPI dashboard |
+| 31 | `apps/api_server/pharma_learn/api/lib/routes/workflow/routes.dart` | Workflow aggregator |
+| 32 | `apps/api_server/pharma_learn/api/lib/routes/workflow/approvals/approvals_pending_handler.dart` | Pending approvals |
+| 33 | `apps/api_server/pharma_learn/lifecycle_monitor/pubspec.yaml` | Lifecycle monitor deps |
+| 34 | `apps/api_server/pharma_learn/lifecycle_monitor/bin/server.dart` | Lifecycle entry point |
+| 35 | `apps/api_server/pharma_learn/lifecycle_monitor/lib/routes/jobs/events_fanout_handler.dart` | Outbox fanout |
+| 36 | `apps/api_server/pharma_learn/lifecycle_monitor/lib/services/pg_listener_service.dart` | pg_notify listener |
+
+---
+
+## Verification Plan
+
+1. **Unit tests** — each `*_handler.dart` has a matching test using `mocktail` to mock `SupabaseClient`
+2. **Integration smoke** — `dart test apps/api_server/pharma_learn/api/test/access/login_test.dart` against local Supabase
+3. **E-sig flow** — POST /v1/reauth/create → POST /v1/documents/[id]/approve → verify `electronic_signatures` row with `is_first_in_session=TRUE` and `prev_signature_id` chain
+4. **Two-person revoke** — POST /v1/certificates/[id]/revoke with one signer → expect 422; with both different signers → expect 200 and DB CHECKs satisfied
+5. **Idle-timeout** — advance `last_activity_at` past threshold → next request → 401 `SESSION_TIMEOUT` + `audit_trails` row with `event_category='SESSION_TIMEOUT'`
+6. **Rate limit** — exceed `api_rate_limits` threshold → 429 `Retry-After` header
+7. **Audit chain** — after 10 API calls → POST /v1/integrity/verify → `{is_valid: true}`
+8. **Induction gate** — employee with `induction_completed=false` hits any non-induction endpoint → 403 `InductionGateException`
+9. **SCORM flow** — POST /v1/scorm/packages → GET /v1/scorm/[id]/launch → POST /v1/scorm/[id]/commit (CMI data) → GET /v1/scorm/[id]/progress reflects completion
+10. **Health** — GET :8080/health → `{status: ok, latency_ms: <100}`; GET :8086/health → `{status: ok, events_outbox_lag: 0}`
+
+---
+
+## Flutter Client — MobX Architecture
+
+State management is **MobX** (`mobx` + `flutter_mobx` + `mobx_codegen`). No Riverpod. No BLoC.
+
+### Flutter `pubspec.yaml` (apps/pharma_learn/pubspec.yaml)
+
+```yaml
 dependencies:
   flutter:
     sdk: flutter
@@ -846,7 +955,11 @@ dev_dependencies:
   freezed: ^2.4.0
   json_serializable: ^6.7.0
   injectable_generator: ^2.4.0
-Flutter Folder Structure
+```
+
+### Flutter Folder Structure
+
+```
 apps/pharma_learn/lib/
   core/
     api/
@@ -891,7 +1004,11 @@ apps/pharma_learn/lib/
       data/notification_repository.dart
       stores/notification_store.dart
   main.dart
-MobX Store Pattern (canonical — every store follows this)
+```
+
+### MobX Store Pattern (canonical — every store follows this)
+
+```dart
 // features/auth/stores/auth_store.dart
 import 'package:mobx/mobx.dart';
 import 'package:injectable/injectable.dart';
@@ -965,6 +1082,9 @@ abstract class _AuthStore with Store {
 }
 
 enum AuthStatus { initial, loading, authenticated, mfaPending, locked, error }
+```
+
+```dart
 // features/training/stores/training_store.dart
 @lazySingleton
 class TrainingStore = _TrainingStore with _$TrainingStore;
@@ -1006,7 +1126,11 @@ abstract class _TrainingStore with Store {
     String? qrCode,
   }) async { ... }
 }
-API Client (Dio with JWT interceptor)
+```
+
+### API Client (Dio with JWT interceptor)
+
+```dart
 // core/api/api_client.dart
 @lazySingleton
 class ApiClient {
@@ -1030,7 +1154,11 @@ class ApiClient {
   Future<ApiResponse<T>> patch<T>(String path, {dynamic data}) async { ... }
   Future<ApiResponse<T>> delete<T>(String path) async { ... }
 }
-go_router — Auth Guard + Induction Gate
+```
+
+### go_router — Auth Guard + Induction Gate
+
+```dart
 // core/router/app_router.dart
 @singleton
 class AppRouter {
@@ -1069,16 +1197,23 @@ class AppRouter {
     ],
   );
 }
-Handler Implementations — Critical Endpoints
-Relic conventions used throughout:
+```
 
-Handler signature: Future<Response> xyzHandler(Request req)
-Path params via symbol: req.pathParameters[#id]!
-Context values: req.context['supabase'], req.context['auth'], req.context['esig'], req.context['body']
-Extension methods on Request defined in constants.dart provide shorthand: req.supabase, req.auth, req.esig
-Response body: Body.fromString(jsonEncode({...})) with ContentType.json header
-ApiResponse.toResponse() wraps this internally
-1. access/auth/login_handler.dart
+---
+
+## Handler Implementations — Critical Endpoints
+
+> **Relic conventions used throughout:**
+> - Handler signature: `Future<Response> xyzHandler(Request req)`
+> - Path params via symbol: `req.pathParameters[#id]!`
+> - Context values: `req.context['supabase']`, `req.context['auth']`, `req.context['esig']`, `req.context['body']`
+> - Extension methods on `Request` defined in `constants.dart` provide shorthand: `req.supabase`, `req.auth`, `req.esig`
+> - Response body: `Body.fromString(jsonEncode({...}))` with `ContentType.json` header
+> - `ApiResponse.toResponse()` wraps this internally
+
+### 1. `access/auth/login_handler.dart`
+
+```dart
 // POST /v1/auth/login
 // Body: {email: string, password_hash: string}
 // Returns: {session: {...}, employee: {...}}
@@ -1142,7 +1277,11 @@ Future<Response> loginHandler(Request req) async {
     'mfa_required': employee['user_credentials']['mfa_enabled'] ?? false,
   }).toResponse();
 }
-2. create/documents/document_approve_handler.dart
+```
+
+### 2. `create/documents/document_approve_handler.dart`
+
+```dart
 // POST /v1/documents/:id/approve   [esig_middleware required]
 // Body: {e_signature: {reauth_session_id, meaning:'APPROVE', reason}, comments}
 Future<Response> documentApproveHandler(Request req) async {
@@ -1197,7 +1336,11 @@ Future<Response> documentApproveHandler(Request req) async {
       .select('*, document_control(*)').eq('id', docId).single();
   return ApiResponse.ok({'document': updated, 'esig_id': esigId}).toResponse();
 }
-3. certify/certificates/certificate_revoke_handler.dart
+```
+
+### 3. `certify/certificates/certificate_revoke_handler.dart`
+
+```dart
 // POST /v1/certificates/:id/revoke
 // Body: {
 //   e_signature_primary:   {reauth_session_id, meaning:'REVOKE', reason},
@@ -1275,7 +1418,11 @@ Future<Response> certificateRevokeHandler(Request req) async {
 
   return ApiResponse.ok({'certificate_id': certId, 'status': 'REVOKED'}).toResponse();
 }
-4. train/sessions/session_checkin_handler.dart
+```
+
+### 4. `train/sessions/session_checkin_handler.dart`
+
+```dart
 // POST /v1/sessions/:id/check-in
 // Body: {check_in_method: 'QR'|'BIOMETRIC'|'MANUAL', qr_code?, employee_id?}
 Future<Response> sessionCheckinHandler(Request req) async {
@@ -1317,7 +1464,11 @@ Future<Response> sessionCheckinHandler(Request req) async {
     'checked_in_at': attendance['check_in_time'],
   }).toResponse();
 }
-5. certify/assessments/assessment_submit_handler.dart
+```
+
+### 5. `certify/assessments/assessment_submit_handler.dart`
+
+```dart
 // POST /v1/assessments/:id/submit  [esig_middleware required]
 // Body: {e_signature: {...}}
 Future<Response> assessmentSubmitHandler(Request req) async {
@@ -1370,7 +1521,11 @@ Future<Response> assessmentSubmitHandler(Request req) async {
     'attempt_id': attemptId,
   }).toResponse();
 }
-6. lifecycle_monitor/routes/jobs/events_fanout_handler.dart
+```
+
+### 6. `lifecycle_monitor/routes/jobs/events_fanout_handler.dart`
+
+```dart
 // POST /jobs/events  — called by cron every 5s OR triggered by pg_notify
 Future<Response> eventsFanoutHandler(Request req) async {
   final supabase = req.context['supabase'] as SupabaseClient;
@@ -1446,45 +1601,80 @@ Future<void> _handleAssessmentSubmitted(SupabaseClient db, Map event) async {
     'p_payload': jsonEncode({'employee_id': payload['employee_id']}),
   });
 }
-Key Request/Response Shapes
-POST /v1/auth/login
+```
+
+---
+
+## Key Request/Response Shapes
+
+### POST /v1/auth/login
+```
 Request:  {email: string, password_hash: string}
 Response: {data: {session: {access_token, refresh_token, expires_in}, employee: {id, name, email, induction_completed, organization_id, plant_id}, mfa_required: bool}}
 Errors:   401 auth.invalid | 423 account-locked
-POST /v1/reauth/create (§11.200 reauth session)
+```
+
+### POST /v1/reauth/create (§11.200 reauth session)
+```
 Request:  {password_hash: string, meaning: 'APPROVE'|'SUBMIT'|'REVOKE'|'SIGN'}
 Response: {data: {reauth_session_id: UUID, expires_at: ISO8601, meaning: string}}
 Errors:   401 session-timeout | 400 invalid-password
-POST /v1/documents/:id/approve
+```
+
+### POST /v1/documents/:id/approve
+```
 Request:  {e_signature: {reauth_session_id: UUID, meaning:'APPROVE', reason: string, is_first_in_session: bool}, comments?: string}
 Response: {data: {document: {...}, esig_id: UUID, approval_step: {level, approved_by, approved_at}}}
 Errors:   428 esig-required | 409 conflict (wrong status) | 403 permission-denied
-POST /v1/sessions/:id/check-in
+```
+
+### POST /v1/sessions/:id/check-in
+```
 Request:  {check_in_method: 'QR'|'BIOMETRIC'|'MANUAL', qr_code?: string, employee_id?: UUID}
 Response: {data: {attendance_id: UUID, checked_in_at: ISO8601, session_code: string}}
 Errors:   409 session-not-in-progress | 422 invalid-qr-code
-POST /v1/assessments/start
+```
+
+### POST /v1/assessments/start
+```
 Request:  {question_paper_id: UUID, training_record_id: UUID}
 Response: {data: {attempt_id: UUID, started_at: ISO8601, time_limit_minutes: int, question_count: int, questions: [{id, text, type, options?}]}}
-GET /v1/compliance/dashboard
+```
+
+### GET /v1/compliance/dashboard
+```
 Query:    ?plant_id=UUID&department_id=UUID&as_of=ISO8601
 Response: {data: {compliance_percent: float, total_employees: int, compliant: int, overdue: int, upcoming_due: int, by_department: [{...}], certificates_expiring_30d: int}}
-GET /v1/me/dashboard
-Response: {data: {employee: {...}, my_obligations: [{course, due_date, status}], upcoming_sessions: [{...}], certificates: [{...}], completion_percent: float, pending_approvals: int}}
-Lifecycle Monitor — All Jobs
-Job	Trigger	Frequency	DB Call / Action
-events_fanout	pg_notify + poll	every 5s	Poll events_outbox, route, mark processed
-cert_expiry	cron	every hour	Query certs expiring ≤30d, send notifications
-overdue_training	cron	every hour	mark_overdue_reviews(), query overdue obligations, escalate
-integrity_check	cron	nightly	verify_audit_hash_chain() RPC, update system_health_checks
-archive	cron	nightly	archive_jobs table per retention_policies, write data_archives
-password_expiry	cron	daily	Scan user_credentials.expires_at, send 7d/1d warning emails
-session_cleanup	cron	every 15m	Revoke user_sessions where expires_at < NOW()
-compliance_metrics	cron	every 6h	Recalculate employees.compliance_percent per plant
-periodic_review	cron	daily	mark_overdue_reviews() for periodic_review_schedules
-workflow_engine — Internal Structure
-Port 8085. No external exposure. Only WorkflowListenerService (pg_notify + 5s poll) calls its own handlers internally.
+```
 
+### GET /v1/me/dashboard
+```
+Response: {data: {employee: {...}, my_obligations: [{course, due_date, status}], upcoming_sessions: [{...}], certificates: [{...}], completion_percent: float, pending_approvals: int}}
+```
+
+---
+
+## Lifecycle Monitor — All Jobs
+
+| Job | Trigger | Frequency | DB Call / Action |
+|-----|---------|-----------|-----------------|
+| `events_fanout` | pg_notify + poll | every 5s | Poll `events_outbox`, route, mark processed |
+| `cert_expiry` | cron | every hour | Query certs expiring ≤30d, send notifications |
+| `overdue_training` | cron | every hour | `mark_overdue_reviews()`, query overdue obligations, escalate |
+| `integrity_check` | cron | nightly | `verify_audit_hash_chain()` RPC, update `system_health_checks` |
+| `archive` | cron | nightly | `archive_jobs` table per `retention_policies`, write `data_archives` |
+| `password_expiry` | cron | daily | Scan `user_credentials.expires_at`, send 7d/1d warning emails |
+| `session_cleanup` | cron | every 15m | Revoke `user_sessions` where `expires_at < NOW()` |
+| `compliance_metrics` | cron | every 6h | Recalculate `employees.compliance_percent` per plant |
+| `periodic_review` | cron | daily | `mark_overdue_reviews()` for periodic_review_schedules |
+
+---
+
+## workflow_engine — Internal Structure
+
+Port 8085. No external exposure. Only `WorkflowListenerService` (pg_notify + 5s poll) calls its own handlers internally.
+
+```
 workflow_engine/
   bin/server.dart                          ← RelicApp on :8085 (internal network only)
   lib/
@@ -1501,23 +1691,31 @@ workflow_engine/
       approval_state_machine.dart          ← Core FSM: load matrix → advance step → notify
     workflow_engine.dart
   pubspec.yaml                             ← same deps as lifecycle_monitor
-Approval state machine flow (advance_step_handler.dart):
+```
 
-Load approval_matrices row for {entity_type, organization_id}
-Find current approval_steps row where status = 'PENDING' and lowest step_order
-Mark step APPROVED (with esig_id from event payload)
-Check if more steps remain → if YES: notify next approver via supabase.functions.invoke('send-notification')
-If NO more steps: update entity status to 'EFFECTIVE' + publish {entity_type}.approved event
-workflow_listener_service.dart (pg_notify pattern, identical to lifecycle_monitor):
+**Approval state machine flow** (`advance_step_handler.dart`):
+1. Load `approval_matrices` row for `{entity_type, organization_id}`
+2. Find current `approval_steps` row where `status = 'PENDING'` and lowest `step_order`
+3. Mark step `APPROVED` (with esig_id from event payload)
+4. Check if more steps remain → if YES: notify next approver via `supabase.functions.invoke('send-notification')`
+5. If NO more steps: update entity status to `'EFFECTIVE'` + publish `{entity_type}.approved` event
 
+**workflow_listener_service.dart** (pg_notify pattern, identical to lifecycle_monitor):
+```dart
 // Subscribes to pg_notify channel for workflow events (document.submitted, course.submitted, gtp.submitted, etc.)
 // Falls back to 5s polling of events_outbox WHERE event_type LIKE '%.submitted'
 // On receipt: POSTs internally to /internal/workflow/advance-step
-auth-hook Edge Function — Required Changes
-File: supabase/functions/auth-hook/index.ts
+```
 
-The hook exists and already embeds employee_id, organization_id, plant_id. Two additions required:
+---
 
+## auth-hook Edge Function — Required Changes
+
+**File**: `supabase/functions/auth-hook/index.ts`
+
+The hook exists and already embeds `employee_id`, `organization_id`, `plant_id`. Two additions required:
+
+```typescript
 // ADD to auth-hook/index.ts after existing claims extraction:
 const { data: permissions } = await supabaseAdmin
   .rpc('get_employee_permissions', { p_employee_id: employee.id });
@@ -1536,8 +1734,10 @@ return {
     induction_completed: employee_record?.induction_completed ?? false,  // NEW: boolean
   }
 };
-auth_middleware.dart reads these without any extra DB call:
+```
 
+**auth_middleware.dart reads these without any extra DB call:**
+```dart
 final appMeta  = jwtPayload['app_metadata'] as Map<String, dynamic>;
 final permissions       = List<String>.from(appMeta['permissions'] ?? []);
 final inductionDone     = appMeta['induction_completed'] as bool? ?? false;
@@ -1550,8 +1750,14 @@ final authCtx = AuthContext(
   inductionCompleted: inductionDone,
   sessionId: jwtPayload['jti']!,
 );
-Dev / Prod Setup
-Makefile (repo root)
+```
+
+---
+
+## Dev / Prod Setup
+
+### Makefile (repo root)
+```makefile
 .PHONY: dev codegen codegen-watch test docker-prod
 
 # Start all 3 servers locally (dart run, hot-reloadable)
@@ -1579,7 +1785,10 @@ test:
 # Production deployment
 docker-prod:
 	docker compose -f docker-compose.prod.yml up --build -d
-docker-compose.prod.yml (production)
+```
+
+### docker-compose.prod.yml (production)
+```yaml
 services:
   nginx:
     image: nginx:alpine
@@ -1620,7 +1829,10 @@ services:
       SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
     ports: ["8085:8085"]   # internal only
     restart: unless-stopped
-NGINX config (nginx.conf — reverse proxy)
+```
+
+### NGINX config (nginx.conf — reverse proxy)
+```nginx
 upstream pharma_api { server pharma_api:8080; }
 
 server {
@@ -1636,9 +1848,15 @@ server {
   proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
   proxy_set_header X-Real-IP $remote_addr;
 }
-Prometheus Metrics
-Each Relic server exposes GET /metrics on its port (internal only; NGINX blocks /metrics externally).
+```
 
+---
+
+## Prometheus Metrics
+
+Each Relic server exposes `GET /metrics` on its port (internal only; NGINX blocks `/metrics` externally).
+
+```dart
 // packages/pharmalearn_shared/lib/src/middleware/metrics_middleware.dart
 // Counters exposed:
 // pharma_api_requests_total{method, route, status}
@@ -1650,25 +1868,34 @@ Each Relic server exposes GET /metrics on its port (internal only; NGINX blocks 
 
 // Collected by Prometheus scraping :8080/metrics, :8086/metrics, :8085/metrics
 // Grafana dashboards for: request rate, p95 latency, outbox lag, failed login rate
-Vyuh Screen Classification
-Auto-generated via vyuh_entity_system (@VyuhEntity())
+```
+
+---
+
+## Vyuh Screen Classification
+
+### Auto-generated via `vyuh_entity_system` (`@VyuhEntity()`)
 Simple CRUD — no multi-step workflow, no e-sig, no domain-specific UX:
+- Config: approval matrices, numbering schemes, retention policies, system settings, feature flags, validation rules, password policies
+- Master data: standard reasons, categories
+- Resources: venues, roles, groups, delegations, question banks, competencies, trainers, coordinators, periodic reviews
 
-Config: approval matrices, numbering schemes, retention policies, system settings, feature flags, validation rules, password policies
-Master data: standard reasons, categories
-Resources: venues, roles, groups, delegations, question banks, competencies, trainers, coordinators, periodic reviews
-Fully custom Flutter screens
+### Fully custom Flutter screens
 Complex UX, multi-step flows, domain-specific interactions:
+- Auth: login, MFA setup/verify, biometric enrollment, SSO login, password reset, induction flow
+- Documents: document detail + review (inline PDF), approval action with e-sig dialog
+- Assessment: assessment player (timed, question-by-question, submit with e-sig)
+- Training: session check-in (QR scanner / biometric), OJT sign-off (dual-person e-sig), my dashboard (fl_chart graphs)
+- Certificates: two-person revocation dialog, certificate PDF viewer, public verify page
+- Compliance: compliance dashboard (fl_chart, data_table_2), compliance report download
+- Workflow: pending approvals queue, approval detail with e-sig dialog
+- E-sig: EsigDialog (reused across all esig actions — prompts password, creates reauth, returns reauth_session_id)
 
-Auth: login, MFA setup/verify, biometric enrollment, SSO login, password reset, induction flow
-Documents: document detail + review (inline PDF), approval action with e-sig dialog
-Assessment: assessment player (timed, question-by-question, submit with e-sig)
-Training: session check-in (QR scanner / biometric), OJT sign-off (dual-person e-sig), my dashboard (fl_chart graphs)
-Certificates: two-person revocation dialog, certificate PDF viewer, public verify page
-Compliance: compliance dashboard (fl_chart, data_table_2), compliance report download
-Workflow: pending approvals queue, approval detail with e-sig dialog
-E-sig: EsigDialog (reused across all esig actions — prompts password, creates reauth, returns reauth_session_id)
-SCORM 1.2 Runtime — JS Bridge Pattern
+---
+
+## SCORM 1.2 Runtime — JS Bridge Pattern
+
+```
 Flutter WebView (flutter_inappwebview)
   ↓ loads signed URL to scorm_packages Storage
   ↓ injects SCORM API shim: sets window.API = PharmaLearnAPI
@@ -1678,26 +1905,37 @@ Flutter WebView (flutter_inappwebview)
   ↓ POST /v1/scorm/:id/commit → {lesson_status, score_raw, suspend_data, time}
   ↓ scorm_commit_handler.dart upserts scorm_cmi + updates training_records
   ↓ if lesson_status='passed' → publish assessment.submitted event → cert generation
-SCORM offline: CMI commits buffered in Hive ScormCmiCache; synced on reconnect in order. Server upserts are idempotent (same session_id, sequence_number).
+```
 
-Offline Sync — 4 Hive Scenarios
-Scenario	Cache key	TTL	Sync strategy
-Session check-in	checkin_{sessionId}_{employeeId}	Until synced	On reconnect: check server record exists → if exists discard (server-wins); else POST
-Dashboard data	dashboard_{employeeId}	30 min	Background refresh on app foreground; stale-while-revalidate
-Viewed PDFs	pdf_{documentId}_{version}	LRU 20 docs	Evict oldest on download of new doc
-SCORM CMI commits	scorm_cmi_{sessionId}_{seq}	Until synced	On reconnect: POST each commit in sequence order; server upserts idempotently
-Conflict resolution: Server-wins for check-in. If session_attendance row exists for (session_id, employee_id), offline record is discarded silently.
+**SCORM offline**: CMI commits buffered in Hive `ScormCmiCache`; synced on reconnect in order. Server upserts are idempotent (same session_id, sequence_number).
 
-Implementation Build Order
+---
+
+## Offline Sync — 4 Hive Scenarios
+
+| Scenario | Cache key | TTL | Sync strategy |
+|----------|-----------|-----|---------------|
+| Session check-in | `checkin_{sessionId}_{employeeId}` | Until synced | On reconnect: check server record exists → if exists discard (server-wins); else POST |
+| Dashboard data | `dashboard_{employeeId}` | 30 min | Background refresh on app foreground; stale-while-revalidate |
+| Viewed PDFs | `pdf_{documentId}_{version}` | LRU 20 docs | Evict oldest on download of new doc |
+| SCORM CMI commits | `scorm_cmi_{sessionId}_{seq}` | Until synced | On reconnect: POST each commit in sequence order; server upserts idempotently |
+
+**Conflict resolution**: **Server-wins** for check-in. If `session_attendance` row exists for `(session_id, employee_id)`, offline record is discarded silently.
+
+---
+
+## Implementation Build Order
+
 Build in this exact sequence to always have a runnable server:
 
-Sprint	Files	Outcome
-S1: Foundation	pharmalearn_shared/ (all), api/bin/server.dart, api/lib/pharma_learn_api.dart, health routes, Makefile	Server starts, GET /health → 200, make dev works
-S2: Auth	access/auth/*, access/employees/*, access/roles/*, auth-hook additions	POST /v1/auth/login works; JWT middleware live; permissions in JWT claims
-S3: Create	create/documents/*, create/courses/*, create/gtps/*, create/config/*	Document CRUD + approval flow + e-sig middleware
-S4: Train	train/schedules/*, train/sessions/*, train/me/*, train/induction/*	Check-in/check-out; dashboard; induction gate
-S5: Certify	certify/assessments/*, certify/certificates/*, certify/reauth/*, certify/compliance/*	Assessment submit + two-person revoke + compliance dashboard
-S6: Workflow	workflow/approvals/*, workflow/notifications/*, workflow/audit/*, workflow/quality/*	Pending approvals queue; audit trail queries
-S7: Lifecycle	lifecycle_monitor/ (all files), workflow_engine/ (all files)	Events fanout; cert expiry; integrity check; approval state machine
-S8: SCORM	create/scorm/*, SCORM service, flutter_inappwebview JS bridge	SCORM 1.2 upload + launch + CMI commit via JS bridge
-S9: MobX client	Flutter stores + repositories + router + Vyuh entity screens	End-to-end Flutter → API; codegen: make codegen
+| Sprint | Files | Outcome |
+|--------|-------|---------|
+| **S1: Foundation** | `pharmalearn_shared/` (all), `api/bin/server.dart`, `api/lib/pharma_learn_api.dart`, health routes, Makefile | Server starts, GET /health → 200, `make dev` works |
+| **S2: Auth** | `access/auth/*`, `access/employees/*`, `access/roles/*`, auth-hook additions | POST /v1/auth/login works; JWT middleware live; permissions in JWT claims |
+| **S3: Create** | `create/documents/*`, `create/courses/*`, `create/gtps/*`, `create/config/*` | Document CRUD + approval flow + e-sig middleware |
+| **S4: Train** | `train/schedules/*`, `train/sessions/*`, `train/me/*`, `train/induction/*` | Check-in/check-out; dashboard; induction gate |
+| **S5: Certify** | `certify/assessments/*`, `certify/certificates/*`, `certify/reauth/*`, `certify/compliance/*` | Assessment submit + two-person revoke + compliance dashboard |
+| **S6: Workflow** | `workflow/approvals/*`, `workflow/notifications/*`, `workflow/audit/*`, `workflow/quality/*` | Pending approvals queue; audit trail queries |
+| **S7: Lifecycle** | `lifecycle_monitor/` (all files), `workflow_engine/` (all files) | Events fanout; cert expiry; integrity check; approval state machine |
+| **S8: SCORM** | `create/scorm/*`, SCORM service, flutter_inappwebview JS bridge | SCORM 1.2 upload + launch + CMI commit via JS bridge |
+| **S9: MobX client** | Flutter stores + repositories + router + Vyuh entity screens | End-to-end Flutter → API; codegen: `make codegen` |
