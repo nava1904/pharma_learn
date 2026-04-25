@@ -1332,7 +1332,118 @@ Below is a high-level overview of all major objects (tables) in the PharmaLearn 
 
 ---
 
+## 21 CFR Part 11 Compliance Matrix
+
+The schema is designed for full compliance with 21 CFR Part 11 electronic records and signatures requirements:
+
+| CFR Reference | Requirement | Implementation |
+|--------------|-------------|----------------|
+| §11.10(a) | System Validation | `schema_changelog` tracks all schema changes with validation status |
+| §11.10(b) | Accurate Copies | `document_versions`, `course_versions` maintain complete version history |
+| §11.10(c) | Record Protection | `data_archives`, `archive_jobs`, `retention_policies` enforce lifecycle |
+| §11.10(d) | Limited Access | RLS policies on all tables, `user_sessions` for session management |
+| §11.10(e) | Audit Trail | `audit_trails` with hash chain, immutability via CREATE RULE |
+| §11.10(f) | Operational Checks | `workflow_instances`, `approval_matrices`, `two_person_revocation` |
+| §11.10(g) | Authority Checks | `roles.approval_tier`, `roles.can_approve`, `user_roles` |
+| §11.10(h) | Device Checks | `user_sessions.device_fingerprint`, `user_sessions.ip_address` |
+| §11.10(i) | Training | `employees.induction_completed`, induction gate enforcement |
+| §11.10(j) | Policies | `password_policies`, `system_settings`, `feature_flags` |
+| §11.10(k) | Documentation | `standard_reasons` controlled vocabulary, `documents` SOP management |
+| §11.50 | E-Signature Manifestations | `electronic_signatures.record_hash`, `signature_meaning` |
+| §11.70 | Signature Linking | `electronic_signatures.prev_signature_id`, session chain |
+| §11.100 | General Requirements | `electronic_signatures.is_first_in_session`, password re-entry |
+| §11.200 | Signature Components | `electronic_signatures.signer_id`, `signed_at`, `record_type` |
+| §11.300 | ID Code/Password | `user_credentials`, `password_policies`, username immutability |
+
+### Compliance Validation Functions
+
+The following functions are available to validate compliance status:
+
+```sql
+-- Run comprehensive compliance check
+SELECT * FROM run_compliance_validation();
+
+-- Verify audit trail hash chain integrity
+SELECT * FROM verify_audit_trail_integrity();
+
+-- Verify e-signature chain integrity  
+SELECT * FROM verify_esignature_integrity();
+
+-- Verify certificate two-person revocation
+SELECT * FROM verify_certificate_integrity();
+
+-- Real-time compliance dashboard view
+SELECT * FROM v_compliance_dashboard;
+```
+
+---
+
+## New Tables Added (v2 Extension Plan)
+
+### Configuration Module (03_config/)
+- `retention_policies` - Data retention rules by entity type
+- `numbering_schemes` - Auto-numbering for sessions, certificates
+- `approval_matrices` - Configurable approval workflows
+- `password_policies` - Password complexity and rotation rules
+- `system_settings` - Key-value system configuration
+- `feature_flags` - Feature toggle management
+
+### Identity Extensions (04_identity/)
+- `user_credentials` - Password hash history, rotation tracking
+- `sso_configurations` - SSO provider configuration
+- `user_delegations` - Authority delegation management
+- `training_coordinators` - Site/department coordinator assignments
+- `user_sessions` - Session tracking and device management
+- `consent_records` - Privacy consent tracking
+
+### Analytics Module (13_analytics/)
+- `kpi_definitions` - KPI calculation definitions
+- `kpi_snapshots` - Historical KPI measurements
+- `v_employee_training_status` - Materialized view for performance
+
+### Compliance Extensions (09_compliance/)
+- `archive_jobs` - Data archiving job tracking
+- `document_readings` - Document acknowledgment with e-signature
+
+### Infrastructure Module (16_infrastructure/)
+- `api_rate_limits` - Per-client rate limiting
+- `webhook_subscriptions` - Event webhook configuration
+- `webhook_deliveries` - Webhook delivery tracking
+- `integration_secrets` - Encrypted credential storage
+
+### Extensions Schema (17_extensions/)
+- `extension_status` - Enable/disable extension modules
+- `xapi_verb_registry` - xAPI verb definitions
+- `xapi_activity_state` - xAPI state storage
+- `xapi_activity_profile` - xAPI activity profiles
+- `xapi_agent_profile` - xAPI agent profiles
+
+---
+
+## Extensions Module Categories
+
+Extensions are optional modules that can be enabled/disabled per organization:
+
+| Category | Tables | Required for Compliance |
+|----------|--------|------------------------|
+| Gamification | `point_events`, `badges`, `badge_awards`, `leaderboard_snapshots`, `streaks`, `challenges` | No |
+| Knowledge Base | `kb_categories`, `kb_articles`, `kb_article_versions`, `kb_article_feedback` | No |
+| Surveys | `surveys`, `survey_questions`, `survey_responses`, `survey_answers` | No |
+| Discussions | `discussion_forums`, `discussion_threads`, `discussion_posts`, `discussion_reactions` | No |
+| Social Learning | `mentorship_relationships`, `learning_groups`, `group_memberships`, `peer_feedback` | No |
+| Cost Tracking | `training_costs`, `cost_allocations`, `vendor_contracts` | No |
+| Content | `content_assets`, `lessons`, `scorm_packages`, `xapi_statements`, `lesson_progress` | Yes |
+
+Toggle extensions via:
+```sql
+SELECT extensions.set_extension_status('gamification', FALSE, user_id, 'Disabling for audit');
+SELECT extensions.is_enabled('gamification');
+```
+
+---
+
 ## Next Steps
 - Review this schema for completeness and clarity.
 - Evaluate relationships and naming conventions.
-- Suggest any changes before generating full seed data for all tables.
+- Run `SELECT * FROM run_compliance_validation()` to verify all compliance checks pass.
+- Execute pgTAP tests in `/supabase/tests/` to validate immutability rules.

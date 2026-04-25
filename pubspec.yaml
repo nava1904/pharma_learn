@@ -1,0 +1,86 @@
+name: pharma_learn
+description: "PharmaLearn LMS - 21 CFR Part 11 Compliant Training Management System"
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.11.4
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # === Core UI ===
+  cupertino_icons: ^1.0.8
+  
+  # === Supabase ===
+  supabase_flutter: ^2.12.4
+  
+  # === State Management (MobX - per plan) ===
+  mobx: ^2.3.3
+  flutter_mobx: ^2.2.1
+  
+  # === Dependency Injection ===
+  get_it: ^8.0.2
+  injectable: ^2.5.0
+  
+  # === Routing ===
+  go_router: ^14.6.2
+  
+  # === Vyuh Enterprise Framework (from pub.vyuh.tech) ===
+  # Note: Vyuh packages require authentication token in ~/.config/dart/pub-tokens.json
+  # The token is: 7wFjVJgUtMawwuh1zJqYzJFP4AYr15JUYewNvXDfTDMTEHpDprIQnASlfSDqGajf
+  # Uncomment these when you have verified the exact package names available:
+  # vyuh_core:
+  #   hosted:
+  #     name: vyuh_core
+  #     url: https://pub.vyuh.tech
+  #   version: ^1.30.0
+  
+  # === Charts & Visualization ===
+  fl_chart: ^0.69.2
+  
+  # === Data Tables ===
+  data_table_2: ^2.5.15
+  
+  # === Local Storage (offline) ===
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
+  flutter_secure_storage: ^9.2.4
+  
+  # === WebView (SCORM) ===
+  flutter_inappwebview: ^6.1.5
+  
+  # === PDF Viewing ===
+  pdfx: ^2.6.0
+  
+  # === QR Scanning (check-in) ===
+  mobile_scanner: ^6.0.2
+  
+  # === Biometrics ===
+  local_auth: ^2.3.0
+  
+  # === Network ===
+  dio: ^5.7.0
+  connectivity_plus: ^6.1.1
+  
+  # === Utils ===
+  intl: ^0.20.1
+  json_annotation: ^4.9.0
+  equatable: ^2.0.7
+  collection: ^1.19.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  
+  # === Code Generation ===
+  build_runner: ^2.4.13
+  mobx_codegen: ^2.6.1
+  injectable_generator: ^2.6.2
+  json_serializable: ^6.8.0
+
+flutter:
+  uses-material-design: true

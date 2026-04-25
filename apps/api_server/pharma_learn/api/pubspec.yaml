@@ -1,0 +1,21 @@
+name: pharma_learn_api
+version: 1.0.0
+publish_to: none
+environment:
+  sdk: ">=3.8.0 <4.0.0"
+dependencies:
+  pharmalearn_shared:
+    path: ../../../../packages/pharmalearn_shared
+  relic: ^1.2.0
+  supabase: ^2.5.0
+  dart_jsonwebtoken: ^2.12.1
+  archive: ^3.4.0
+  xml: ^6.5.0
+  logger: ^2.3.0
+  uuid: ^4.4.0
+  http: ^1.2.1
+  mime: ^2.0.0
+dev_dependencies:
+  lints: ^3.0.0
+  test: ^1.25.0
+  mocktail: ^1.0.1

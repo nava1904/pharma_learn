@@ -1,0 +1,108 @@
+name: pharma_learn
+description: PharmaLearn Flutter app — 21 CFR Part 11 compliant LMS.
+version: 1.0.0+1
+publish_to: none
+
+environment:
+  sdk: ">=3.9.0 <4.0.0"
+  flutter: ">=3.32.0"
+
+# ── Custom registries ─────────────────────────────────────────────────────────
+# Token registered via: dart pub token add https://pub.vyuh.tech
+# Env var VYUH_PUB_TOKEN must be set with the team token.
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # ── Supabase ──────────────────────────────────────────────────────────────
+  supabase_flutter: ^2.5.0
+
+  # ── MobX state management ─────────────────────────────────────────────────
+  mobx: ^2.5.0
+  flutter_mobx: ^2.2.1
+
+  # ── Navigation ────────────────────────────────────────────────────────────
+  go_router: ^14.0.0
+
+  # ── Networking ────────────────────────────────────────────────────────────
+  dio: ^5.4.0
+  connectivity_plus: ^6.0.0
+
+  # ── Security / Local storage ──────────────────────────────────────────────
+  flutter_secure_storage: ^9.0.0
+  hive_flutter: ^1.1.0
+  local_auth: ^2.2.0
+
+  # ── Forms ─────────────────────────────────────────────────────────────────
+  flutter_form_builder: ^9.2.0
+  form_builder_validators: ^10.4.0
+
+  # ── PDF viewing ───────────────────────────────────────────────────────────
+  syncfusion_flutter_pdfviewer: ^28.0.0
+
+  # ── Charts (compliance dashboard) ─────────────────────────────────────────
+  fl_chart: ^0.68.0
+
+  # ── Utilities ─────────────────────────────────────────────────────────────
+  intl: ^0.20.2
+  logger: ^2.3.0
+  uuid: ^4.4.0
+  json_annotation: ^4.9.0
+  freezed_annotation: ^2.4.0
+  get_it: ^8.0.0
+  injectable: ^2.3.0
+  web_socket_channel: ^3.0.0
+
+  # ── SCORM / WebView ───────────────────────────────────────────────────────
+  flutter_inappwebview: ^6.0.0
+
+  # ── Vyuh packages (from pub.vyuh.tech) ───────────────────────────────────
+  # Entity system — auto-generates CRUD screens for config/master-data tables
+  vyuh_entity_system:
+    hosted: https://pub.vyuh.tech
+    version: ^1.18.0
+  vyuh_entity_system_ui:
+    hosted: https://pub.vyuh.tech
+    version: ^1.31.0
+  vyuh_entity_annotations:
+    hosted: https://pub.vyuh.tech
+    version: ^1.9.2
+  vyuh_property_system:
+    hosted: https://pub.vyuh.tech
+    version: ^1.3.0
+
+  # Table widget — replaces data_table_2; sort/filter/paginate built-in
+  vyuh_table:
+    hosted: https://pub.vyuh.tech
+    version: ^1.1.0
+
+  # Timeline — audit trail, certificate history
+  vyuh_timelines:
+    hosted: https://pub.vyuh.tech
+    version: ^0.1.2
+
+  # Filters — reusable filter chips for list screens
+  vyuh_filters:
+    hosted: https://pub.vyuh.tech
+    version: ^1.4.2
+
+  # Rule engine — configurable approval condition evaluation (Flutter + Dart)
+  vyuh_rule_engine:
+    hosted: https://pub.vyuh.tech
+    version: ^1.1.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+  build_runner: ^2.4.0
+  mobx_codegen: ^2.6.1
+  freezed: ^2.4.0
+  json_serializable: ^6.7.0
+  injectable_generator: ^2.4.0
+  # Vyuh entity code generator
+  vyuh_entity_generator:
+    hosted: https://pub.vyuh.tech
+    version: ^1.14.0
+  mocktail: ^1.0.1

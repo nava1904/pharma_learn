@@ -1,0 +1,18 @@
+name: pharma_learn_lifecycle_monitor
+version: 1.0.0
+publish_to: none
+environment:
+  sdk: ">=3.8.0 <4.0.0"
+dependencies:
+  pharmalearn_shared:
+    path: ../../../../packages/pharmalearn_shared
+  relic: ^1.2.0
+  supabase: ^2.5.0
+  logger: ^2.3.0
+  http: ^1.2.1
+  uuid: ^4.4.0
+  cron: ^0.5.1
+dev_dependencies:
+  lints: ^3.0.0
+  test: ^1.25.0
+  mocktail: ^1.0.1

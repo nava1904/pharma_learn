@@ -1,0 +1,80 @@
+version: '3.8'
+
+services:
+  # ── Reverse Proxy ──────────────────────────────────────────────────────────
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.prod.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      pharma_api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── Main API Server (port 8080) ────────────────────────────────────────────
+  pharma_api:
+    build:
+      context: ./apps/api_server/pharma_learn/api
+      dockerfile: Dockerfile
+    environment:
+      PORT: 8080
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-https://app.pharmalearn.internal}
+      SESSION_IDLE_TIMEOUT_SECONDS: ${SESSION_IDLE_TIMEOUT_SECONDS:-1800}
+      RATE_LIMIT_MAX_REQUESTS: ${RATE_LIMIT_MAX_REQUESTS:-100}
+      RATE_LIMIT_WINDOW_SECONDS: ${RATE_LIMIT_WINDOW_SECONDS:-60}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    expose:
+      - "8080"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # ── Lifecycle Monitor (port 8086, internal only) ────────────────────────────
+  lifecycle_monitor:
+    build:
+      context: ./apps/api_server/pharma_learn/lifecycle_monitor
+      dockerfile: Dockerfile
+    environment:
+      LIFECYCLE_MONITOR_PORT: 8086
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    expose:
+      - "8086"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8086/health"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  # ── Workflow Engine (port 8085, internal only) ──────────────────────────────
+  workflow_engine:
+    build:
+      context: ./apps/api_server/pharma_learn/workflow_engine
+      dockerfile: Dockerfile
+    environment:
+      WORKFLOW_ENGINE_PORT: 8085
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    expose:
+      - "8085"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8085/health"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 15s

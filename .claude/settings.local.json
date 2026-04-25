@@ -1,0 +1,31 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cat)",
+      "Read(//tmp/**)",
+      "Bash(dart --version)",
+      "Bash(flutter --version --machine)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(d.get\\('dartSdkVersion','?'\\)\\)\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); r=[p for p in d['packages'] if p['name']=='relic']; print\\(r[0] if r else 'relic not found'\\)\")",
+      "Bash(find ~/.pub-cache/hosted/pub.dev/relic_core-* -name \"*.dart\")",
+      "Bash(dart pub *)",
+      "Bash(dart analyze *)",
+      "Bash(sed -n '43,80p' ~/.pub-cache/hosted/pub.dev/relic_core-1.1.0/lib/src/adapter/connection_info.dart)",
+      "Bash(sed -n '25,80p' ~/.pub-cache/hosted/pub.dev/relic_core-1.1.0/lib/src/headers/headers.dart)",
+      "Bash(VYUH_PUB_TOKEN=7wFjVJgUtMawwuh1zJqYzJFP4AYr15JUYewNvXDfTDMTEHpDprIQnASlfSDqGajf dart pub token add https://pub.vyuh.tech)",
+      "Bash(curl -s \"https://pub.vyuh.tech/api/packages?q=vyuh\")",
+      "Bash(curl -s -H \"Authorization: Bearer 7wFjVJgUtMawwuh1zJqYzJFP4AYr15JUYewNvXDfTDMTEHpDprIQnASlfSDqGajf\" \"https://pub.vyuh.tech/api/packages\")",
+      "Bash(curl -s -H \"Authorization: Bearer 7wFjVJgUtMawwuh1zJqYzJFP4AYr15JUYewNvXDfTDMTEHpDprIQnASlfSDqGajf\" \"https://pub.vyuh.tech/api/packages?page=2\")",
+      "Bash(python3 -c \"import sys,json; data=json.load\\(sys.stdin\\); [print\\(p['name'], p['latestVersion']\\) for p in data['packages']]\")",
+      "Bash(curl -s -H \"Authorization: Bearer 7wFjVJgUtMawwuh1zJqYzJFP4AYr15JUYewNvXDfTDMTEHpDprIQnASlfSDqGajf\" \"https://pub.vyuh.tech/api/packages/vyuh_entity_system/versions/1.18.0\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(d.get\\('pubspec', {}\\).get\\('dependencies', {}\\)\\)\")",
+      "Bash(curl -s -H \"Authorization: Bearer 7wFjVJgUtMawwuh1zJqYzJFP4AYr15JUYewNvXDfTDMTEHpDprIQnASlfSDqGajf\" \"https://pub.vyuh.tech/api/packages/vyuh_workflow_engine/versions/1.3.2\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); p=d.get\\('pubspec',{}\\); print\\('deps:', p.get\\('dependencies',{}\\)\\); print\\('sdk:', p.get\\('environment',{}\\)\\)\")",
+      "Bash(curl -s \"https://pub.dev/api/packages/vyuh_core\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(d.get\\('latest',{}\\).get\\('version'\\), d.get\\('latest',{}\\).get\\('pubspec',{}\\).get\\('description',''\\)[:100]\\)\")",
+      "Bash(curl -s -H \"Authorization: Bearer 7wFjVJgUtMawwuh1zJqYzJFP4AYr15JUYewNvXDfTDMTEHpDprIQnASlfSDqGajf\" \"https://pub.vyuh.tech/api/packages/vyuh_workflow_storage_supabase/versions/1.2.5\")",
+      "Bash(curl -s -H \"Authorization: Bearer 7wFjVJgUtMawwuh1zJqYzJFP4AYr15JUYewNvXDfTDMTEHpDprIQnASlfSDqGajf\" \"https://pub.vyuh.tech/api/packages/vyuh_filters/versions/1.4.2\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); p=d.get\\('pubspec',{}\\); print\\('deps:', p.get\\('dependencies',{}\\)\\); print\\('sdk:', p.get\\('environment',{}\\)\\); print\\('flutter?:', 'flutter' in str\\(p.get\\('dependencies',{}\\)\\)\\)\")"
+    ]
+  }
+}
