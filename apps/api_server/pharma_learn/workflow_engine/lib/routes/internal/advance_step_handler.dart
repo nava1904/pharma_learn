@@ -2,7 +2,6 @@
 // Body: {entity_type: string, entity_id: UUID, event_type: string, payload: Map}
 import 'package:relic/relic.dart';
 import 'package:pharmalearn_shared/pharmalearn_shared.dart';
-import 'dart:convert';
 
 Future<Response> advanceStepHandler(Request req) async {
   final body = await readJson(req);

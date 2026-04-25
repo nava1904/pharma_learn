@@ -60,12 +60,10 @@ Future<Response> coursesCreateHandler(Request req) async {
   final name = requireString(body, 'name');
 
   String? uniqueCode = optionalString(body, 'unique_code');
-  if (uniqueCode == null) {
-    uniqueCode = await supabase.rpc(
+  uniqueCode ??= await supabase.rpc(
       'generate_document_number',
       params: {'p_doc_type': 'course', 'p_org_id': auth.orgId},
     ) as String?;
-  }
 
   final course = await supabase.from('courses').insert({
     'name': name,

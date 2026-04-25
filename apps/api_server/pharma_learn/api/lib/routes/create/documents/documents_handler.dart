@@ -76,12 +76,10 @@ Future<Response> documentsCreateHandler(Request req) async {
 
   // Auto-generate unique_code via DB numbering scheme if not supplied
   String? uniqueCode = optionalString(body, 'unique_code');
-  if (uniqueCode == null) {
-    uniqueCode = await supabase.rpc(
+  uniqueCode ??= await supabase.rpc(
       'generate_document_number',
       params: {'p_doc_type': documentType, 'p_org_id': auth.orgId},
     ) as String?;
-  }
 
   final document = await supabase
       .from('documents')

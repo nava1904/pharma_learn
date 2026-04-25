@@ -2,7 +2,7 @@
 ///
 /// Provides middleware, models, services and utilities consumed by all three
 /// Relic servers (api, lifecycle_monitor, workflow_engine).
-library pharmalearn_shared;
+library;
 
 // ── Client ──────────────────────────────────────────────────────────────────
 export 'src/client/supabase_client.dart';

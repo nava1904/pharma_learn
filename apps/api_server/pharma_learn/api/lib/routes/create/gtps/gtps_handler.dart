@@ -58,12 +58,10 @@ Future<Response> gtpsCreateHandler(Request req) async {
   final effectiveFrom = requireString(body, 'effective_from');
 
   String? uniqueCode = optionalString(body, 'unique_code');
-  if (uniqueCode == null) {
-    uniqueCode = await supabase.rpc(
+  uniqueCode ??= await supabase.rpc(
       'generate_document_number',
       params: {'p_doc_type': 'gtp', 'p_org_id': auth.orgId},
     ) as String?;
-  }
 
   final gtp = await supabase.from('gtp_masters').insert({
     'name': name,
