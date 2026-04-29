@@ -179,7 +179,7 @@ class CertificateService {
     if (status != 'active') {
       return {
         'isValid': false,
-        'reason': 'Certificate has been ${status}',
+        'reason': 'Certificate has been $status',
         'certificate': _sanitizeCertForPublic(cert),
       };
     }
@@ -188,7 +188,7 @@ class CertificateService {
       return {
         'isValid': false,
         'reason': 'Certificate has expired',
-        'expiredOn': validUntil!.toIso8601String(),
+        'expiredOn': validUntil.toIso8601String(),
         'certificate': _sanitizeCertForPublic(cert),
       };
     }

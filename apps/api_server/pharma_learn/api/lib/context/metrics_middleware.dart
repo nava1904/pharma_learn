@@ -35,7 +35,7 @@ class Counter {
 
   String _labelKey(Map<String, String>? labels) {
     if (labels == null || labels.isEmpty) return '';
-    final parts = labelNames.map((name) => '${name}="${labels[name] ?? ""}"');
+    final parts = labelNames.map((name) => '$name="${labels[name] ?? ""}"');
     return '{${parts.join(',')}}';
   }
 
@@ -80,7 +80,7 @@ class Gauge {
 
   String _labelKey(Map<String, String>? labels) {
     if (labels == null || labels.isEmpty) return '';
-    final parts = labelNames.map((name) => '${name}="${labels[name] ?? ""}"');
+    final parts = labelNames.map((name) => '$name="${labels[name] ?? ""}"');
     return '{${parts.join(',')}}';
   }
 
@@ -118,7 +118,7 @@ class Histogram {
 
   String _labelKey(Map<String, String>? labels) {
     if (labels == null || labels.isEmpty) return '';
-    final parts = labelNames.map((name) => '${name}="${labels[name] ?? ""}"');
+    final parts = labelNames.map((name) => '$name="${labels[name] ?? ""}"');
     return '{${parts.join(',')}}';
   }
 

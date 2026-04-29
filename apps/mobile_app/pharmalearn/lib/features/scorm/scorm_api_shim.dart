@@ -2,6 +2,7 @@
 ///
 /// Injects `window.API` object that implements SCORM 1.2 RTE functions.
 /// All calls are bridged to Dart via postMessage/JavaScriptHandler.
+library;
 
 /// JavaScript code to inject into SCORM content WebView.
 ///

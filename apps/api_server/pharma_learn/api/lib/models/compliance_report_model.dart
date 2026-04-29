@@ -3,6 +3,7 @@
 /// Used by: GET /v1/reports/compliance
 /// Reference: URS-REP-03 - Department Compliance Report
 /// Reference: EE §6.2 - compliance dashboard
+library;
 
 /// Request parameters for compliance report.
 class ComplianceReportRequest {

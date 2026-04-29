@@ -89,7 +89,7 @@ Future<Response> approveStepHandler(Request req) async {
       // Publish completion event
       await EventPublisher.publish(
         supabase,
-        eventType: '${entityType}.approved',
+        eventType: '$entityType.approved',
         aggregateType: entityType,
         aggregateId: entityId,
         orgId: orgId,

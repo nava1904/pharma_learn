@@ -5,7 +5,7 @@
 /// - [ScormPlayerScreen] - Full-screen SCORM player page
 /// - [ScormRepository] - API communication and offline sync
 /// - [scormApiShimJs] - JavaScript shim for SCORM API injection
-library scorm;
+library;
 
 export 'scorm_api_shim.dart';
 export 'scorm_player_screen.dart';

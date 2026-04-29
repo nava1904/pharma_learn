@@ -87,7 +87,7 @@ Future<Response> approvalGetHandler(Request req) async {
   final entityType = step['entity_type'] as String;
   await PermissionChecker(supabase).require(
     auth.employeeId,
-    '${entityType}.approve',
+    '$entityType.approve',
     jwtPermissions: auth.permissions,
   );
 
@@ -121,7 +121,7 @@ Future<Response> approvalApproveHandler(Request req) async {
   final entityType = step['entity_type'] as String;
   await PermissionChecker(supabase).require(
     auth.employeeId,
-    '${entityType}.approve',
+    '$entityType.approve',
     jwtPermissions: auth.permissions,
   );
 
@@ -187,7 +187,7 @@ Future<Response> approvalRejectHandler(Request req) async {
   final entityType = step['entity_type'] as String;
   await PermissionChecker(supabase).require(
     auth.employeeId,
-    '${entityType}.approve',
+    '$entityType.approve',
     jwtPermissions: auth.permissions,
   );
 
@@ -302,7 +302,7 @@ Future<Response> approvalReturnHandler(Request req) async {
   final entityType = step['entity_type'] as String;
   await PermissionChecker(supabase).require(
     auth.employeeId,
-    '${entityType}.approve',
+    '$entityType.approve',
     jwtPermissions: auth.permissions,
   );
 

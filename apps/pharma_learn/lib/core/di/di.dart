@@ -13,7 +13,7 @@ final GetIt getIt = GetIt.instance;
 /// Call from main() before runApp().
 @InjectableInit(preferRelativeImports: true)
 Future<void> configureDependencies() async {
-  await getIt.init();
+  getIt.init();
 }
 
 /// Module for registering Supabase client.

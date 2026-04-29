@@ -121,7 +121,7 @@ abstract class _OjtStoreBase with Store {
         data: {
           'esig_password': esigPassword,
           'meaning': meaning,
-          if (comments != null) 'comments': comments,
+          'comments': ?comments,
         },
       );
       

@@ -1,5 +1,5 @@
 /// Repositories for API communication.
-library repositories;
+library;
 
 export 'training_repository.dart';
 export 'assessment_repository.dart';

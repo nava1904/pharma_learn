@@ -63,7 +63,7 @@ Future<Response> rejectWorkflowHandler(Request req) async {
     // 4. Publish rejection event
     await EventPublisher.publish(
       supabase,
-      eventType: '${entityType}.rejected',
+      eventType: '$entityType.rejected',
       aggregateType: entityType,
       aggregateId: entityId,
       orgId: orgId,

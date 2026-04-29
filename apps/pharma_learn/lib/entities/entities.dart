@@ -1,5 +1,5 @@
 /// Entities module for Vyuh auto-generated CRUD screens.
-library entities;
+library;
 
 export 'role_entity.dart';
 export 'venue_entity.dart';

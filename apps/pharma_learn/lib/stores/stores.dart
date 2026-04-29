@@ -1,5 +1,5 @@
 /// MobX stores for application state management.
-library stores;
+library;
 
 export 'auth_store.dart';
 export 'dashboard_store.dart';

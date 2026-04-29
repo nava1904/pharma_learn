@@ -136,7 +136,7 @@ class RealtimeService {
       channel = _channels[fullChannelName]!;
     } else {
       channel = _supabase.channel(fullChannelName);
-      await channel.subscribe();
+      channel.subscribe();
       _channels[fullChannelName] = channel;
     }
 
@@ -218,7 +218,7 @@ class RealtimeService {
       channel = _channels[fullChannelName]!;
     } else {
       channel = _supabase.channel(fullChannelName);
-      await channel.subscribe();
+      channel.subscribe();
       _channels[fullChannelName] = channel;
     }
 

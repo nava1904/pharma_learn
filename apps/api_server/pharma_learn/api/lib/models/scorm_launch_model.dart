@@ -3,6 +3,7 @@
 /// Used by: GET /v1/train/wbt/:courseId/launch
 /// Reference: URS-TRN-08 - WBT Integration
 /// Reference: EE §5.3 - SCORM 1.2/2004 compliance
+library;
 
 /// Request to launch a SCORM course.
 class ScormLaunchRequest {
